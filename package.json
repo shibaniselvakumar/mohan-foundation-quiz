@@ -11,10 +11,20 @@
     "build": "cd frontend && npm run build",
     "start": "cd backend && npm start"
   },
-  "keywords": ["quiz", "live", "education", "real-time"],
+  "keywords": [
+    "quiz",
+    "live",
+    "education",
+    "real-time"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@mui/material": "^7.2.0",
+    "@mui/system": "^7.2.0"
   }
-} 
+}

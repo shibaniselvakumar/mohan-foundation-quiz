@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Alert from '@mui/material/Alert';
+import Divider from '@mui/material/Divider';
 
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -20,23 +28,18 @@ const Register: React.FC = () => {
 
   const validateForm = () => {
     const errors: string[] = [];
-
     if (formData.username.length < 3) {
       errors.push('Username must be at least 3 characters long');
     }
-
     if (!formData.email.includes('@')) {
       errors.push('Please enter a valid email address');
     }
-
     if (formData.password.length < 6) {
       errors.push('Password must be at least 6 characters long');
     }
-
     if (formData.password !== formData.confirmPassword) {
       errors.push('Passwords do not match');
     }
-
     setValidationErrors(errors);
     return errors.length === 0;
   };
@@ -47,8 +50,6 @@ const Register: React.FC = () => {
       ...prev,
       [name]: value
     }));
-
-    // Clear validation errors when user starts typing
     if (validationErrors.length > 0) {
       setValidationErrors([]);
     }
@@ -56,11 +57,9 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateForm()) {
       return;
     }
-
     setIsSubmitting(true);
     try {
       await register(formData.username, formData.email, formData.password);
@@ -73,177 +72,118 @@ const Register: React.FC = () => {
   };
 
   return (
-    <div className="container">
-      <div className="flex items-center justify-center" style={{ minHeight: '80vh' }}>
-        <div style={{ width: '100%', maxWidth: '400px' }}>
-          <div className="card">
-            <div className="card-header">
-              <h1 style={{
-                fontSize: '2rem',
-                fontWeight: '700',
-                color: 'var(--primary-blue)',
-                textAlign: 'center',
-                marginBottom: '0.5rem'
-              }}>
-                Create Account
-              </h1>
-              <p style={{
-                textAlign: 'center',
-                color: 'var(--gray-600)',
-                fontSize: '1rem'
-              }}>
-                Join us to start creating amazing quizzes
-              </p>
-            </div>
-
-            {error && (
-              <div className="alert alert-error">
-                {error}
-              </div>
-            )}
-
-            {validationErrors.length > 0 && (
-              <div className="alert alert-warning">
-                <ul style={{ margin: 0, paddingLeft: '1rem' }}>
-                  {validationErrors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label htmlFor="username" className="form-label">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  id="username"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  className="form-input"
-                  placeholder="Choose a username"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="email" className="form-label">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="form-input"
-                  placeholder="Enter your email address"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="password" className="form-label">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="form-input"
-                  placeholder="Create a password"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="confirmPassword" className="form-label">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="form-input"
-                  placeholder="Confirm your password"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: '100%' }}
-                disabled={isSubmitting || !formData.username || !formData.email || !formData.password || !formData.confirmPassword}
-              >
-                {isSubmitting ? 'Creating Account...' : 'Create Account'}
-              </button>
-            </form>
-
-            <div style={{
-              textAlign: 'center',
-              marginTop: '2rem',
-              paddingTop: '1.5rem',
-              borderTop: '1px solid var(--gray-200)'
-            }}>
-              <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>
-                Already have an account?
-              </p>
-              <Link
-                to="/login"
-                className="btn btn-outline"
-                style={{ width: '100%' }}
-              >
-                Sign In
-              </Link>
-            </div>
-          </div>
-
-          <div style={{
-            textAlign: 'center',
-            marginTop: '2rem',
-            padding: '1.5rem',
-            backgroundColor: 'var(--light-blue)',
-            borderRadius: '0.75rem',
-            border: '1px solid var(--primary-blue)'
-          }}>
-            <h3 style={{
-              fontSize: '1.125rem',
-              fontWeight: '600',
-              color: 'var(--primary-blue)',
-              marginBottom: '0.5rem'
-            }}>
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', py: 4 }}>
+      <Card sx={{ maxWidth: 400, width: '100%', boxShadow: 6, borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="h4" fontWeight={700} color="primary" align="center" gutterBottom>
+            Create Account
+          </Typography>
+          <Typography variant="body2" color="text.secondary" align="center" mb={2}>
+            Join us to start creating amazing quizzes
+          </Typography>
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {validationErrors.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <ul style={{ margin: 0, paddingLeft: '1rem' }}>
+                {validationErrors.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+          <Box component="form" onSubmit={handleSubmit} autoComplete="off" sx={{ mt: 2 }}>
+            <TextField
+              label="Username"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              disabled={isSubmitting}
+              autoFocus
+            />
+            <TextField
+              label="Email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              disabled={isSubmitting}
+            />
+            <TextField
+              label="Password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              disabled={isSubmitting}
+            />
+            <TextField
+              label="Confirm Password"
+              name="confirmPassword"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              disabled={isSubmitting}
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              fullWidth
+              size="large"
+              sx={{ mt: 2, fontWeight: 700, borderRadius: 2 }}
+              disabled={isSubmitting || !formData.username || !formData.email || !formData.password || !formData.confirmPassword}
+            >
+              {isSubmitting ? 'Creating Account...' : 'Create Account'}
+            </Button>
+          </Box>
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="body2" color="text.secondary" align="center" mb={1}>
+            Already have an account?
+          </Typography>
+          <Button
+            component={Link}
+            to="/login"
+            variant="outlined"
+            color="primary"
+            fullWidth
+            sx={{ mb: 2, fontWeight: 700, borderRadius: 2 }}
+          >
+            Sign In
+          </Button>
+          <Divider sx={{ my: 2 }} />
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Typography variant="subtitle1" color="primary" fontWeight={600} gutterBottom>
               Want to join a quiz?
-            </h3>
-            <p style={{
-              color: 'var(--gray-600)',
-              marginBottom: '1rem',
-              fontSize: '0.875rem'
-            }}>
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={1}>
               If you have an access code, you can join without creating an account.
-            </p>
-            <Link
+            </Typography>
+            <Button
+              component={Link}
               to="/join"
-              className="btn btn-secondary"
-              style={{ width: '100%' }}
+              variant="contained"
+              color="secondary"
+              fullWidth
+              sx={{ fontWeight: 700, borderRadius: 2 }}
             >
               Join Quiz
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   );
 };
 

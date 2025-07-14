@@ -4,17 +4,23 @@
   "description": "Frontend for NGO Quiz Application",
   "private": true,
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.2.0",
+    "@mui/material": "^7.2.0",
+    "@mui/system": "^7.2.0",
+    "@mui/types": "^7.4.4",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.42",
     "@types/react-dom": "^18.2.17",
+    "axios": "^1.6.2",
+    "chart.js": "^4.4.0",
     "react": "^18.2.0",
+    "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
     "react-scripts": "^5.0.1",
     "socket.io-client": "^4.7.4",
-    "axios": "^1.6.2",
-    "chart.js": "^4.4.0",
-    "react-chartjs-2": "^5.2.0",
     "typescript": "^4.9.5",
     "web-vitals": "^3.5.0"
   },
@@ -43,4 +49,4 @@
     ]
   },
   "proxy": "http://localhost:5000"
-} 
+}

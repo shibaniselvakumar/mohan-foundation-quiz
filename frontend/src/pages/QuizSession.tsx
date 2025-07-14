@@ -11,6 +11,8 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import QuizTopbar from '../components/QuizTopbar';
+import Box from '@mui/material/Box';
 
 ChartJS.register(
   CategoryScale,
@@ -28,6 +30,7 @@ interface Question {
   options?: string[];
   timeLimit: number;
   imageUrl?: string;
+  totalQuestions?: number;
 }
 
 interface QuestionResult {
@@ -68,6 +71,12 @@ const QuizSession: React.FC = () => {
   const [participantInfo, setParticipantInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultsCountdown, setResultsCountdown] = useState(5);
+
+  // Calculate total steps (questions) if available
+  // If you have totalQuestions in props or context, use it; otherwise, fallback to 0
+  const totalSteps = currentQuestion && typeof currentQuestion.totalQuestions === 'number'
+    ? currentQuestion.totalQuestions
+    : undefined;
 
   useEffect(() => {
     // Get participant info from session storage
@@ -325,286 +334,300 @@ const QuizSession: React.FC = () => {
   }
 
   return (
-    <div className="quiz-container">
-      {/* Header */}
-      <div className="quiz-header">
-        <h1 className="quiz-title">
-          {participantInfo?.name ? `${participantInfo.name}'s Quiz` : 'Live Quiz'}
-        </h1>
-        <p className="quiz-subtitle">
-          {sessionState === 'waiting' && 'Waiting for quiz to start...'}
-          {sessionState === 'active' && `Question ${questionIndex + 1}`}
-          {sessionState === 'results' && 'Question Results'}
-          {sessionState === 'ended' && 'Quiz Complete'}
-        </p>
-      </div>
-
-      {/* Waiting Screen */}
-      {sessionState === 'waiting' && (
-        <div className="waiting-screen">
-          <div className="waiting-icon">⏳</div>
-          <div className="waiting-text">Waiting for quiz to start</div>
-          <div className="waiting-subtext">
-            {participantCount > 0 ? `${participantCount} participant(s) joined` : 'No participants yet'}
-          </div>
+    <>
+      <QuizTopbar
+        participantName={participantInfo?.name}
+        timer={sessionState === 'active' ? timeLeft : undefined}
+        step={sessionState === 'active' ? questionIndex : undefined}
+        totalSteps={sessionState === 'active' && totalSteps ? totalSteps : undefined}
+      />
+      <div className="quiz-container">
+        <div className="quiz-header">
+          <div className="header-accent-bar" />
+          <h1 className="quiz-title">
+            {participantInfo?.name ? `${participantInfo.name}'s Quiz` : 'Live Quiz'}
+          </h1>
+          <p className="quiz-subtitle">
+            {sessionState === 'waiting' && 'Waiting for quiz to start...'}
+            {sessionState === 'active' && `Question ${questionIndex + 1}`}
+            {sessionState === 'results' && 'Question Results'}
+            {sessionState === 'ended' && 'Quiz Complete'}
+          </p>
         </div>
-      )}
 
-      {/* Active Question */}
-      {sessionState === 'active' && currentQuestion && (
-        <div className="question-card">
-          {/* Timer */}
-          <div className={`timer-container ${timeLeft <= 10 ? 'timer-warning' : ''}`}>
-            {formatTime(timeLeft)}
+        {/* Waiting Screen */}
+        {sessionState === 'waiting' && (
+          <div className="waiting-screen">
+            <div className="waiting-icon">⏳</div>
+            <div className="waiting-text">Waiting for quiz to start</div>
+            <div className="waiting-subtext">
+              {participantCount > 0 ? `${participantCount} participant(s) joined` : 'No participants yet'}
+            </div>
           </div>
+        )}
 
-          {/* Question Image */}
-          {currentQuestion.imageUrl && (
-            <img
-              src={currentQuestion.imageUrl}
-              alt="Question"
-              className="question-image"
-            />
-          )}
+        {/* Active Question */}
+        {sessionState === 'active' && currentQuestion && (
+          <div className="question-card">
+            {/* Timer */}
+            <div className={`timer-container ${timeLeft <= 10 ? 'timer-warning' : ''}`}>
+              {formatTime(timeLeft)}
+            </div>
 
-          {/* Question Text */}
-          <div className="question-text">
-            {currentQuestion.text}
-          </div>
+            {/* Question Image */}
+            {currentQuestion.imageUrl && (
+              <img
+                src={currentQuestion.imageUrl}
+                alt="Question"
+                className="question-image"
+              />
+            )}
 
-          {/* Question Options */}
-          {currentQuestion.type === 'multiple_choice_single' && currentQuestion.options && (
-            <div className="question-options">
-              {currentQuestion.options.map((option, index) => (
+            {/* Question Text */}
+            <div className="question-text">
+              {currentQuestion.text}
+            </div>
+
+            {/* Question Options */}
+            {currentQuestion.type === 'multiple_choice_single' && currentQuestion.options && (
+              <div className="question-options">
+                {currentQuestion.options.map((option, index) => (
+                  <div
+                    key={index}
+                    className={`option-item ${myAnswer === option ? 'selected' : ''}`}
+                    onClick={() => handleOptionSelect(option)}
+                  >
+                    <input
+                      type="radio"
+                      name="answer"
+                      checked={myAnswer === option}
+                      onChange={() => handleOptionSelect(option)}
+                      className="option-checkbox"
+                      disabled={answerSubmitted}
+                    />
+                    <span className="option-text">{option}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {currentQuestion.type === 'multiple_choice_multiple' && currentQuestion.options && (
+              <div className="question-options">
+                {currentQuestion.options.map((option, index) => (
+                  <div
+                    key={index}
+                    className={`option-item ${Array.isArray(myAnswer) && myAnswer.includes(option) ? 'selected' : ''}`}
+                    onClick={() => handleOptionSelect(option)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Array.isArray(myAnswer) && myAnswer.includes(option)}
+                      onChange={() => handleOptionSelect(option)}
+                      className="option-checkbox"
+                      disabled={answerSubmitted}
+                    />
+                    <span className="option-text">{option}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {currentQuestion.type === 'true_false' && (
+              <div className="question-options">
                 <div
-                  key={index}
-                  className={`option-item ${myAnswer === option ? 'selected' : ''}`}
-                  onClick={() => handleOptionSelect(option)}
+                  className={`option-item ${myAnswer === true ? 'selected' : ''}`}
+                  onClick={() => handleOptionSelect('True')}
                 >
                   <input
                     type="radio"
                     name="answer"
-                    checked={myAnswer === option}
-                    onChange={() => handleOptionSelect(option)}
+                    checked={myAnswer === true}
+                    onChange={() => handleOptionSelect('True')}
                     className="option-checkbox"
                     disabled={answerSubmitted}
                   />
-                  <span className="option-text">{option}</span>
+                  <span className="option-text">True</span>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {currentQuestion.type === 'multiple_choice_multiple' && currentQuestion.options && (
-            <div className="question-options">
-              {currentQuestion.options.map((option, index) => (
                 <div
-                  key={index}
-                  className={`option-item ${Array.isArray(myAnswer) && myAnswer.includes(option) ? 'selected' : ''}`}
-                  onClick={() => handleOptionSelect(option)}
+                  className={`option-item ${myAnswer === false ? 'selected' : ''}`}
+                  onClick={() => handleOptionSelect('False')}
                 >
                   <input
-                    type="checkbox"
-                    checked={Array.isArray(myAnswer) && myAnswer.includes(option)}
-                    onChange={() => handleOptionSelect(option)}
+                    type="radio"
+                    name="answer"
+                    checked={myAnswer === false}
+                    onChange={() => handleOptionSelect('False')}
                     className="option-checkbox"
                     disabled={answerSubmitted}
                   />
-                  <span className="option-text">{option}</span>
+                  <span className="option-text">False</span>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {currentQuestion.type === 'true_false' && (
-            <div className="question-options">
-              <div
-                className={`option-item ${myAnswer === true ? 'selected' : ''}`}
-                onClick={() => handleOptionSelect('True')}
-              >
-                <input
-                  type="radio"
-                  name="answer"
-                  checked={myAnswer === true}
-                  onChange={() => handleOptionSelect('True')}
-                  className="option-checkbox"
-                  disabled={answerSubmitted}
-                />
-                <span className="option-text">True</span>
-              </div>
-              <div
-                className={`option-item ${myAnswer === false ? 'selected' : ''}`}
-                onClick={() => handleOptionSelect('False')}
-              >
-                <input
-                  type="radio"
-                  name="answer"
-                  checked={myAnswer === false}
-                  onChange={() => handleOptionSelect('False')}
-                  className="option-checkbox"
-                  disabled={answerSubmitted}
-                />
-                <span className="option-text">False</span>
-              </div>
-            </div>
-          )}
-
-          {currentQuestion.type === 'typed_answer' && (
-            <div>
-              <input
-                type="text"
-                value={myAnswer || ''}
-                onChange={handleTypedAnswer}
-                className="answer-input"
-                placeholder="Type your answer..."
-                disabled={answerSubmitted}
-              />
-            </div>
-          )}
-
-          {currentQuestion.type === 'match' && (
-            <div>
-              <input
-                type="text"
-                value={Array.isArray(myAnswer) ? myAnswer.join(', ') : ''}
-                onChange={handleMatchAnswer}
-                className="answer-input"
-                placeholder="Enter matching items separated by commas..."
-                disabled={answerSubmitted}
-              />
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <button
-            onClick={handleAnswerSubmit}
-            className="submit-btn"
-            disabled={
-              answerSubmitted || 
-              (myAnswer === null || myAnswer === undefined) || 
-              (Array.isArray(myAnswer) && myAnswer.length === 0) ||
-              (currentQuestion.type === 'typed_answer' && !myAnswer)
-            }
-          >
-            {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
-          </button>
-        </div>
-      )}
-
-      {/* Question Results */}
-      {sessionState === 'results' && questionResults && (
-        <div className="stats-container">
-          <div className="stats-header">
-            <h2 className="stats-title">Question Results</h2>
-            {resultsCountdown > 0 && (
-              <div className="results-countdown">
-                Next question in {resultsCountdown} seconds...
               </div>
             )}
-          </div>
 
-          <div className="stats-summary">
-            <div className="stat-card">
-              <div className="stat-number">{questionResults.totalResponses}</div>
-              <div className="stat-label">Total Responses</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-number">{questionResults.correctResponses}</div>
-              <div className="stat-label">Correct Answers</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-number">
-                {questionResults.totalResponses > 0 
-                  ? Math.round((questionResults.correctResponses / questionResults.totalResponses) * 100)
-                  : 0}%
+            {currentQuestion.type === 'typed_answer' && (
+              <div>
+                <input
+                  type="text"
+                  value={myAnswer || ''}
+                  onChange={handleTypedAnswer}
+                  className="answer-input"
+                  placeholder="Type your answer..."
+                  disabled={answerSubmitted}
+                />
               </div>
-              <div className="stat-label">Success Rate</div>
-            </div>
+            )}
+
+            {currentQuestion.type === 'match' && (
+              <div>
+                <input
+                  type="text"
+                  value={Array.isArray(myAnswer) ? myAnswer.join(', ') : ''}
+                  onChange={handleMatchAnswer}
+                  className="answer-input"
+                  placeholder="Enter matching items separated by commas..."
+                  disabled={answerSubmitted}
+                />
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              onClick={handleAnswerSubmit}
+              className="submit-btn"
+              disabled={
+                answerSubmitted || 
+                (myAnswer === null || myAnswer === undefined) || 
+                (Array.isArray(myAnswer) && myAnswer.length === 0) ||
+                (currentQuestion.type === 'typed_answer' && !myAnswer)
+              }
+            >
+              {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
+            </button>
           </div>
+        )}
 
-          {/* Chart */}
-          {getChartData() && (
-            <div className="chart-container">
-              <Bar data={getChartData()!} options={chartOptions} />
+        {/* Question Results */}
+        {sessionState === 'results' && questionResults && (
+          <Box sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            bgcolor: 'rgba(255,255,255,0.98)',
+            zIndex: 1300,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: { xs: 1, md: 4 },
+            boxShadow: 12,
+            borderRadius: 4,
+            overflowY: 'auto',
+          }}>
+            <div className="stats-header">
+              <h2 className="stats-title">Question Results</h2>
+              {resultsCountdown > 0 && (
+                <div className="results-countdown">
+                  Next question in {resultsCountdown} seconds...
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Participant Results */}
-          <div style={{ marginTop: '1.5rem' }}>
-            <h3 style={{
-              fontSize: '1.25rem',
-              fontWeight: '600',
-              color: 'var(--gray-800)',
-              marginBottom: '1rem'
-            }}>
-              Participant Results
-            </h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {questionResults.participants.map((participant, index) => (
-                <span
-                  key={index}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    borderRadius: '2rem',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    backgroundColor: participant.isCorrect ? '#d1fae5' : '#fee2e2',
-                    color: participant.isCorrect ? '#065f46' : '#991b1b'
-                  }}
-                >
-                  {participant.name} {participant.isCorrect ? '✓' : '✗'}
-                </span>
+            <div className="stats-summary" style={{ width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'center', gap: '2rem', margin: '2rem 0' }}>
+              <div className="stat-card" style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                <div className="stat-number">{questionResults.totalResponses}</div>
+                <div className="stat-label">Total Responses</div>
+              </div>
+              <div className="stat-card" style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                <div className="stat-number">{questionResults.correctResponses}</div>
+                <div className="stat-label">Correct Answers</div>
+              </div>
+              <div className="stat-card" style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                <div className="stat-number">
+                  {questionResults.totalResponses > 0 
+                    ? Math.round((questionResults.correctResponses / questionResults.totalResponses) * 100)
+                    : 0}%
+                </div>
+                <div className="stat-label">Success Rate</div>
+              </div>
+            </div>
+
+            {/* Chart */}
+            {getChartData() && (
+              <div className="chart-container" style={{ width: '100%', maxWidth: 1000, height: 320, margin: '2rem 0' }}>
+                <Bar data={getChartData()!} options={chartOptions} height={320} />
+              </div>
+            )}
+
+            {/* Participant Results */}
+            <div style={{ marginTop: '1.5rem', width: '100%', maxWidth: 900 }}>
+              <h3 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: 'var(--gray-800)',
+                marginBottom: '1rem'
+              }}>
+                Participant Results
+              </h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {questionResults.participants.map((participant, index) => (
+                  <span
+                    key={index}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '2rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      backgroundColor: participant.isCorrect ? '#d1fae5' : '#fee2e2',
+                      color: participant.isCorrect ? '#065f46' : '#991b1b'
+                    }}
+                  >
+                    {participant.name} {participant.isCorrect ? '✓' : '✗'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </Box>
+        )}
+
+        {/* Final Leaderboard */}
+        {sessionState === 'ended' && (
+          <div className="leaderboard-container">
+            <div className="leaderboard-header">
+              <h2 className="leaderboard-title">Final Results</h2>
+              <p style={{ color: 'var(--gray-600)' }}>
+                Your final score: {myScore} points
+              </p>
+            </div>
+
+            <div>
+              {leaderboard.map((entry, index) => (
+                <div key={index} className="leaderboard-item">
+                  <div className={`leaderboard-rank rank-${index + 1 <= 3 ? index + 1 : 'other'}`}>
+                    {index + 1}
+                  </div>
+                  <div className="leaderboard-name">{entry.name}</div>
+                  <div className="leaderboard-score">{entry.total_score} pts</div>
+                </div>
               ))}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Final Leaderboard */}
-      {sessionState === 'ended' && (
-        <div className="leaderboard-container">
-          <div className="leaderboard-header">
-            <h2 className="leaderboard-title">Final Results</h2>
-            <p style={{ color: 'var(--gray-600)' }}>
-              Your final score: {myScore} points
-            </p>
-          </div>
-
-          <div>
-            {leaderboard.map((entry, index) => (
-              <div key={index} className="leaderboard-item">
-                <div className={`leaderboard-rank rank-${index + 1 <= 3 ? index + 1 : 'other'}`}>
-                  {index + 1}
-                </div>
-                <div className="leaderboard-name">{entry.name}</div>
-                <div className="leaderboard-score">{entry.total_score} pts</div>
+            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => navigate('/join')}
+                  className="btn btn-primary"
+                >
+                  Join Another Quiz
+                </button>
               </div>
-            ))}
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={() => navigate('/join')}
-                className="btn btn-primary"
-              >
-                Join Another Quiz
-              </button>
-              <button
-                onClick={() => {
-                  // Clear session storage and go back to join page
-                  sessionStorage.removeItem('participantInfo');
-                  navigate('/join');
-                }}
-                className="btn btn-outline"
-              >
-                Join Different Quiz
-              </button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 };
 

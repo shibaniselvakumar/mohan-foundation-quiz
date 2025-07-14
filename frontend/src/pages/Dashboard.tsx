@@ -81,23 +81,12 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="container">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container dashboard-container">
+      <div className="dashboard-header">
+        <div className="header-accent-bar" />
         <div>
-          <h1 style={{
-            fontSize: '2.5rem',
-            fontWeight: '700',
-            color: 'var(--gray-800)',
-            marginBottom: '0.5rem'
-          }}>
-            My Quizzes
-          </h1>
-          <p style={{
-            fontSize: '1.125rem',
-            color: 'var(--gray-600)'
-          }}>
-            Create and manage your interactive quizzes
-          </p>
+          <h1 className="dashboard-title">My Quizzes</h1>
+          <p className="dashboard-subtitle">Create and manage your interactive quizzes</p>
         </div>
         <Link to="/quiz/create" className="btn btn-primary btn-lg">
           Create New Quiz
@@ -255,7 +244,7 @@ const Dashboard: React.FC = () => {
                       }
                     }}
                   >
-                    Manage Quiz Session
+                    Start Quiz Session
                   </button>
                 )}
               </div>

@@ -235,6 +235,21 @@ function socketHandler(io) {
         }
 
         const question = questionResult.rows[0];
+        // Parse correct_answers and options from JSON if needed
+        if (question.correct_answers && typeof question.correct_answers === 'string') {
+          try {
+            question.correct_answers = JSON.parse(question.correct_answers);
+          } catch (e) {
+            // fallback or error handling
+          }
+        }
+        if (question.options && typeof question.options === 'string') {
+          try {
+            question.options = JSON.parse(question.options);
+          } catch (e) {
+            // fallback or error handling
+          }
+        }
         sessionState.currentQuestion = question;
 
         // Broadcast quiz start to all participants
@@ -290,6 +305,21 @@ function socketHandler(io) {
         }
 
         const question = questionResult.rows[0];
+        // Parse correct_answers and options from JSON if needed
+        if (question.correct_answers && typeof question.correct_answers === 'string') {
+          try {
+            question.correct_answers = JSON.parse(question.correct_answers);
+          } catch (e) {
+            // fallback or error handling
+          }
+        }
+        if (question.options && typeof question.options === 'string') {
+          try {
+            question.options = JSON.parse(question.options);
+          } catch (e) {
+            // fallback or error handling
+          }
+        }
         sessionState.currentQuestion = question;
         sessionState.currentQuestionIndex = nextQuestionIndex;
 
@@ -339,6 +369,17 @@ function socketHandler(io) {
               // More questions - wait 5 seconds then continue
               setTimeout(async () => {
                 const nextQ = nextQuestionResult.rows[0];
+                // Parse correct_answers and options from JSON if needed
+                if (nextQ.correct_answers && typeof nextQ.correct_answers === 'string') {
+                  try {
+                    nextQ.correct_answers = JSON.parse(nextQ.correct_answers);
+                  } catch (e) {}
+                }
+                if (nextQ.options && typeof nextQ.options === 'string') {
+                  try {
+                    nextQ.options = JSON.parse(nextQ.options);
+                  } catch (e) {}
+                }
                 sessionState.currentQuestion = nextQ;
                 sessionState.currentQuestionIndex = nextQuestionIndex + 1;
 
@@ -408,6 +449,17 @@ function socketHandler(io) {
           // There are more questions - wait 5 seconds then move to next
           setTimeout(async () => {
             const nextQuestion = nextQuestionResult.rows[0];
+            // Parse correct_answers and options from JSON if needed
+            if (nextQuestion.correct_answers && typeof nextQuestion.correct_answers === 'string') {
+              try {
+                nextQuestion.correct_answers = JSON.parse(nextQuestion.correct_answers);
+              } catch (e) {}
+            }
+            if (nextQuestion.options && typeof nextQuestion.options === 'string') {
+              try {
+                nextQuestion.options = JSON.parse(nextQuestion.options);
+              } catch (e) {}
+            }
             sessionState.currentQuestion = nextQuestion;
             sessionState.currentQuestionIndex = sessionState.currentQuestionIndex + 1;
 
@@ -446,8 +498,6 @@ function socketHandler(io) {
         socket.emit('error', { message: 'Failed to end question' });
       }
     });
-
-
 
     // Participant submits answer
     socket.on('submit-answer', async (data) => {
@@ -634,6 +684,17 @@ function startQuestionTimer(sessionId, timeLimit, io) {
         // There are more questions - wait 5 seconds then move to next
         setTimeout(async () => {
           const nextQuestion = nextQuestionResult.rows[0];
+          // Parse correct_answers and options from JSON if needed
+          if (nextQuestion.correct_answers && typeof nextQuestion.correct_answers === 'string') {
+            try {
+              nextQuestion.correct_answers = JSON.parse(nextQuestion.correct_answers);
+            } catch (e) {}
+          }
+          if (nextQuestion.options && typeof nextQuestion.options === 'string') {
+            try {
+              nextQuestion.options = JSON.parse(nextQuestion.options);
+            } catch (e) {}
+          }
           sessionState.currentQuestion = nextQuestion;
           sessionState.currentQuestionIndex = sessionState.currentQuestionIndex + 1;
 
@@ -676,29 +737,37 @@ function startQuestionTimer(sessionId, timeLimit, io) {
 }
 
 function checkAnswer(answer, question) {
+  console.log('DEBUG checkAnswer:', {
+    question_type: question.question_type,
+    correct_answers: question.correct_answers,
+    correct_answers_type: Array.isArray(question.correct_answers) ? 'array' : typeof question.correct_answers,
+    answer,
+    answer_type: typeof answer
+  });
   switch (question.question_type) {
     case 'multiple_choice_single':
-      return answer === question.correct_answers[0];
-    
+      return Array.isArray(question.correct_answers)
+        ? answer === question.correct_answers[0]
+        : answer === question.correct_answers;
     case 'multiple_choice_multiple':
       if (!Array.isArray(answer) || !Array.isArray(question.correct_answers)) {
         return false;
       }
       return answer.length === question.correct_answers.length &&
              answer.every(a => question.correct_answers.includes(a));
-    
     case 'true_false':
-      return answer === question.correct_answers[0];
-    
+      return Array.isArray(question.correct_answers)
+        ? answer === question.correct_answers[0]
+        : answer === question.correct_answers;
     case 'typed_answer':
-      return answer.toLowerCase().trim() === question.correct_answers[0].toLowerCase().trim();
-    
+      return Array.isArray(question.correct_answers)
+        ? answer.toLowerCase().trim() === question.correct_answers[0].toLowerCase().trim()
+        : answer.toLowerCase().trim() === question.correct_answers.toLowerCase().trim();
     case 'match':
       if (!Array.isArray(answer) || !Array.isArray(question.correct_answers)) {
         return false;
       }
       return JSON.stringify(answer.sort()) === JSON.stringify(question.correct_answers.sort());
-    
     default:
       return false;
   }
