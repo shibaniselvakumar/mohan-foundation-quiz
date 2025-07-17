@@ -127,6 +127,7 @@ const QuizSessionCreator: React.FC = () => {
     });
 
     socket.on('question-ended', (results) => {
+      console.log('question-ended received, setting timeLeft to 0 and showing results overlay', results);
       setSessionState('results');
       setQuestionResults(results);
       setTimeLeft(0);
@@ -144,6 +145,41 @@ const QuizSessionCreator: React.FC = () => {
       setError(data.message);
     });
 
+    socket.on('quiz-started', (data) => {
+      setSessionState('active');
+      setCurrentQuestion({
+        id: data.question.id,
+        question_text: data.question.text,
+        question_type: data.question.type,
+        options: data.question.options,
+        time_limit: data.question.timeLimit,
+        points: data.question.points ?? 1,
+        negative_points: data.question.negative_points ?? 0,
+        order_index: data.question.order_index ?? 0
+      });
+      setQuestionIndex(data.questionIndex);
+      setTimeLeft(data.question.timeLimit);
+      setQuestionResults(null);
+    });
+
+    // Listen for show-question event (admin-paced)
+    socket.on('show-question', (data) => {
+      setSessionState('active');
+      setCurrentQuestion({
+        id: data.question.id,
+        question_text: data.question.text,
+        question_type: data.question.type,
+        options: data.question.options,
+        time_limit: data.question.timeLimit,
+        points: data.question.points ?? 1,
+        negative_points: data.question.negative_points ?? 0,
+        order_index: data.question.order_index ?? 0
+      });
+      setQuestionIndex(data.questionIndex);
+      setTimeLeft(data.question.timeLimit);
+      setQuestionResults(null);
+    });
+
     return () => {
       socket.off('creator-joined');
       socket.off('participant-joined');
@@ -152,6 +188,8 @@ const QuizSessionCreator: React.FC = () => {
       socket.off('question-ended');
       socket.off('quiz-ended');
       socket.off('error');
+      socket.off('quiz-started');
+      socket.off('show-question');
     };
   }, [socket]);
 
@@ -236,6 +274,11 @@ const QuizSessionCreator: React.FC = () => {
     );
   }
 
+  if (currentQuestion && (sessionState === 'active' || sessionState === 'results')) {
+    // eslint-disable-next-line no-console
+    console.log('Rendering timer:', { sessionState, timeLeft });
+  }
+
   return (
     <Box sx={{ width: '100vw', minHeight: '100vh', bgcolor: '#e3f0ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', p: 0, m: 0, overflowX: 'hidden' }}>
       <Paper elevation={8} sx={{
@@ -288,12 +331,12 @@ const QuizSessionCreator: React.FC = () => {
           </div>
         </div>
 
-        {/* Control Panel */}
-        <div className="control-panel" style={{ width: '100%' }}>
-          <h3>Quiz Controls</h3>
-          
-          {sessionState === 'waiting' && (
-            <div className="control-buttons">
+        {/* Control Panel and Current Question Side by Side */}
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 4, width: '100%' }}>
+          {/* Control Panel */}
+          <div className="control-panel" style={{ width: '100%', maxWidth: 350 }}>
+            <h3>Quiz Controls</h3>
+            <div className="control-buttons" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <Button
                 onClick={startQuiz}
                 variant="contained"
@@ -320,33 +363,64 @@ const QuizSessionCreator: React.FC = () => {
                   ? `Start Quiz (${participantCount} participants)`
                   : 'Session Started'}
               </Button>
-            </div>
-          )}
-
-          {sessionState === 'active' && (
-            <div className="control-buttons">
-              <button
-                onClick={() => socket?.emit('end-question', { sessionId: parseInt(sessionId!) })}
-                className="btn btn-secondary"
-              >
-                End Question Early
-              </button>
-            </div>
-          )}
-
-          {sessionState === 'results' && (
-            <div className="control-buttons">
-              {questionIndex < questions.length - 1 && (
+              {questions.length > 0 && questionIndex < questions.length - 1 && (
                 <button
                   onClick={nextQuestion}
                   className="btn btn-primary"
+                  disabled={!(sessionState === 'active' || sessionState === 'results')}
                 >
                   Next Question
                 </button>
               )}
+              {sessionState === 'active' || sessionState === 'results' ? (
+                <>
+                  <button
+                    onClick={() => socket?.emit('end-question', { sessionId: parseInt(sessionId!) })}
+                    className="btn btn-secondary"
+                    disabled={sessionState !== 'active' || questionIndex === questions.length - 1}
+                  >
+                    End Question Early
+                  </button>
+                  {questionIndex === questions.length - 1 && (
+                    <button
+                      onClick={() => {
+                        socket?.emit('finish-quiz', { sessionId: parseInt(sessionId!) });
+                      }}
+                      className="btn btn-danger"
+                      style={{ marginTop: '1rem' }}
+                    >
+                      Finish Quiz
+                    </button>
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Current Question */}
+          {(currentQuestion && (sessionState === 'active' || sessionState === 'results')) && (
+            <div className="current-question" style={{ width: '100%' }}>
+              <h3>Current Question</h3>
+              <div className="question-card">
+                <div className="question-text">{currentQuestion.question_text}</div>
+                <div className="question-type">Type: {currentQuestion.question_type}</div>
+                <div className="question-time">
+                  Time Left: {formatTime(sessionState === 'results' ? 0 : timeLeft)} / {currentQuestion.time_limit}s
+                </div>
+                {currentQuestion.options && (
+                  <div className="question-options">
+                    <h4>Options:</h4>
+                    {currentQuestion.options.map((option, index) => (
+                      <div key={index} className="option-item">
+                        {option}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </div>
+        </Box>
 
         {/* Participants List */}
         <div className="participants-list" style={{ width: '100%' }}>
@@ -360,67 +434,63 @@ const QuizSessionCreator: React.FC = () => {
           </div>
         </div>
 
-        {/* Current Question */}
-        {currentQuestion && sessionState === 'active' && (
-          <div className="current-question" style={{ width: '100%' }}>
-            <h3>Current Question</h3>
-            <div className="question-card">
-              <div className="question-text">{currentQuestion.question_text}</div>
-              <div className="question-type">Type: {currentQuestion.question_type}</div>
-              <div className="question-time">Time Limit: {currentQuestion.time_limit}s</div>
-              {currentQuestion.options && (
-                <div className="question-options">
-                  <h4>Options:</h4>
-                  {currentQuestion.options.map((option, index) => (
-                    <div key={index} className="option-item">
-                      {option}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Question Results */}
         {sessionState === 'results' && questionResults && (
-          <Box className="question-results" sx={{ width: '100vw', minHeight: 'calc(100vh - 120px)', position: 'relative', left: '50%', right: '50%', marginLeft: '-50vw', marginRight: '-50vw', bgcolor: 'background.paper', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: { xs: 1, md: 6 }, py: 4, overflow: 'visible' }}>
-            <h3 style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>Question Results</h3>
-            <Box className="results-summary" sx={{ display: 'flex', justifyContent: 'center', gap: 4, width: '100%', maxWidth: 900, mb: 4 }}>
-              <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-                <div className="stat-number">{questionResults.totalResponses}</div>
-                <div className="stat-label">Total Responses</div>
+          <Box
+            className="question-results"
+            sx={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              bgcolor: 'rgba(0,0,0,0.7)',
+              zIndex: 2000,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: { xs: 1, md: 6 },
+              py: 4,
+              overflow: 'auto',
+            }}
+          >
+            <Box sx={{ background: '#fff', borderRadius: 4, p: 4, minWidth: 320, maxWidth: 900, width: '100%' }}>
+              <h3 style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>Question Results</h3>
+              <Box className="results-summary" sx={{ display: 'flex', justifyContent: 'center', gap: 4, width: '100%', maxWidth: 900, mb: 4 }}>
+                <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                  <div className="stat-number">{questionResults.totalResponses}</div>
+                  <div className="stat-label">Total Responses</div>
+                </Box>
+                <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                  <div className="stat-number">{questionResults.correctResponses}</div>
+                  <div className="stat-label">Correct Answers</div>
+                </Box>
+                <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                  <div className="stat-number">
+                    {questionResults.totalResponses > 0 
+                      ? Math.round((questionResults.correctResponses / questionResults.totalResponses) * 100)
+                      : 0}%
+                  </div>
+                  <div className="stat-label">Success Rate</div>
+                </Box>
               </Box>
-              <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-                <div className="stat-number">{questionResults.correctResponses}</div>
-                <div className="stat-label">Correct Answers</div>
+              {/* Chart */}
+              {getChartData() && (
+                <Box className="chart-container" sx={{ width: '100%', maxWidth: 1000, height: { xs: 240, md: 400 }, mb: 4 }}>
+                  <Bar data={getChartData()!} options={{ responsive: true, maintainAspectRatio: false, aspectRatio: 3 }} height={400} />
+                </Box>
+              )}
+              {/* Participant Results */}
+              <Box className="participant-results" sx={{ width: '100%', maxWidth: 900, mt: 2 }}>
+                <h4>Participant Results</h4>
+                {questionResults.participants.map((participant, index) => (
+                  <div key={index} className={`participant-result ${participant.isCorrect ? 'correct' : 'incorrect'}`}> 
+                    <span className="participant-name">{participant.name}</span>
+                    <span className="result-status">{participant.isCorrect ? '✓ Correct' : '✗ Incorrect'}</span>
+                  </div>
+                ))}
               </Box>
-              <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-                <div className="stat-number">
-                  {questionResults.totalResponses > 0 
-                    ? Math.round((questionResults.correctResponses / questionResults.totalResponses) * 100)
-                    : 0}%
-                </div>
-                <div className="stat-label">Success Rate</div>
-              </Box>
-            </Box>
-
-            {/* Chart */}
-            {getChartData() && (
-              <Box className="chart-container" sx={{ width: '100%', maxWidth: 1000, height: { xs: 240, md: 400 }, mb: 4 }}>
-                <Bar data={getChartData()!} options={{ responsive: true, maintainAspectRatio: false, aspectRatio: 3 }} height={400} />
-              </Box>
-            )}
-
-            {/* Participant Results */}
-            <Box className="participant-results" sx={{ width: '100%', maxWidth: 900, mt: 2 }}>
-              <h4>Participant Results</h4>
-              {questionResults.participants.map((participant, index) => (
-                <div key={index} className={`participant-result ${participant.isCorrect ? 'correct' : 'incorrect'}`}> 
-                  <span className="participant-name">{participant.name}</span>
-                  <span className="result-status">{participant.isCorrect ? '✓ Correct' : '✗ Incorrect'}</span>
-                </div>
-              ))}
             </Box>
           </Box>
         )}

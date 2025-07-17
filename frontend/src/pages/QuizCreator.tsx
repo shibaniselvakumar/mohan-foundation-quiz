@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -51,7 +51,7 @@ const QuizCreator: React.FC = () => {
     order_index: 0
   });
 
-  const fetchQuiz = async () => {
+  const fetchQuiz = useCallback(async () => {
     console.log('fetchQuiz called for quizId:', quizId);
     try {
       const response = await axios.get(`/api/quiz/${quizId}`);
@@ -65,7 +65,7 @@ const QuizCreator: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [quizId]);
 
   useEffect(() => {
     console.log('QuizCreator useEffect triggered', { quizId });
@@ -83,7 +83,7 @@ const QuizCreator: React.FC = () => {
       });
       setLoading(false);
     }
-  }, [quizId]);
+  }, [quizId, fetchQuiz]);
 
   const handleQuizSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

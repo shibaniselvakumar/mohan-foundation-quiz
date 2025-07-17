@@ -28,7 +28,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   const connect = () => {
     if (!socket) {
-      const newSocket = io('http://localhost:5000', {
+      const newSocket = io('http://localhost:5050', {
         transports: ['websocket', 'polling'],
         autoConnect: true
       });

@@ -309,16 +309,12 @@ function socketHandler(io) {
         if (question.correct_answers && typeof question.correct_answers === 'string') {
           try {
             question.correct_answers = JSON.parse(question.correct_answers);
-          } catch (e) {
-            // fallback or error handling
-          }
+          } catch (e) {}
         }
         if (question.options && typeof question.options === 'string') {
           try {
             question.options = JSON.parse(question.options);
-          } catch (e) {
-            // fallback or error handling
-          }
+          } catch (e) {}
         }
         sessionState.currentQuestion = question;
         sessionState.currentQuestionIndex = nextQuestionIndex;
@@ -329,8 +325,8 @@ function socketHandler(io) {
           [nextQuestionIndex, sessionId]
         );
 
-        // Broadcast next question
-        io.to(`session-${sessionId}`).emit('next-question', {
+        // Broadcast next question using 'show-question' event
+        io.to(`session-${sessionId}`).emit('show-question', {
           question: {
             id: question.id,
             text: question.question_text,
@@ -342,74 +338,8 @@ function socketHandler(io) {
           questionIndex: nextQuestionIndex
         });
 
-        // Start timer for new question
-        startQuestionTimer(sessionId, question.time_limit, io);
-
-        console.log(`Next question (${nextQuestionIndex}) for session ${sessionId}`);
-        
-        // Set up automatic progression after timer
-        setTimeout(async () => {
-          // Check if timer is still running (question hasn't been manually ended)
-          if (sessionState.questionTimer) {
-            // Timer ran out - auto-progress
-            clearTimeout(sessionState.questionTimer);
-            sessionState.questionTimer = null;
-            
-            // Get question results and show them
-            const results = await getQuestionResults(sessionId, question.id);
-            io.to(`session-${sessionId}`).emit('question-results', results);
-            
-            // Check for next question
-            const nextQuestionResult = await pool.query(
-              'SELECT * FROM questions WHERE quiz_id = $1 ORDER BY order_index OFFSET $2 LIMIT 1',
-              [sessionState.quizId, nextQuestionIndex + 1]
-            );
-
-            if (nextQuestionResult.rows.length > 0) {
-              // More questions - wait 5 seconds then continue
-              setTimeout(async () => {
-                const nextQ = nextQuestionResult.rows[0];
-                // Parse correct_answers and options from JSON if needed
-                if (nextQ.correct_answers && typeof nextQ.correct_answers === 'string') {
-                  try {
-                    nextQ.correct_answers = JSON.parse(nextQ.correct_answers);
-                  } catch (e) {}
-                }
-                if (nextQ.options && typeof nextQ.options === 'string') {
-                  try {
-                    nextQ.options = JSON.parse(nextQ.options);
-                  } catch (e) {}
-                }
-                sessionState.currentQuestion = nextQ;
-                sessionState.currentQuestionIndex = nextQuestionIndex + 1;
-
-                await pool.query(
-                  'UPDATE quiz_sessions SET current_question_index = $1 WHERE id = $2',
-                  [sessionState.currentQuestionIndex, sessionId]
-                );
-
-                io.to(`session-${sessionId}`).emit('next-question', {
-                  question: {
-                    id: nextQ.id,
-                    text: nextQ.question_text,
-                    type: nextQ.question_type,
-                    options: nextQ.options,
-                    timeLimit: nextQ.time_limit,
-                    imageUrl: nextQ.image_url
-                  },
-                  questionIndex: sessionState.currentQuestionIndex
-                });
-
-                startQuestionTimer(sessionId, nextQ.time_limit, io);
-              }, 5000);
-            } else {
-              // No more questions - end quiz
-              setTimeout(async () => {
-                await endQuiz(sessionId, io);
-              }, 5000);
-            }
-          }
-        }, question.time_limit * 1000);
+        // (No auto-advance logic here; admin controls pacing)
+        console.log(`Next question (${nextQuestionIndex}) for session ${sessionId} (admin-paced)`);
       } catch (error) {
         console.error('Next question error:', error);
         socket.emit('error', { message: 'Failed to move to next question' });
@@ -436,9 +366,11 @@ function socketHandler(io) {
         // Get question results
         const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
 
-        // Show results to all participants
-        io.to(`session-${sessionId}`).emit('question-results', results);
+        // Show results to all participants and creator
+        console.log('Emitting question-ended to session', sessionId);
+        io.to(`session-${sessionId}`).emit('question-ended', results);
 
+        // (Keep the rest of the logic for next question/quiz end as is)
         // Check if there are more questions
         const nextQuestionResult = await pool.query(
           'SELECT * FROM questions WHERE quiz_id = $1 ORDER BY order_index OFFSET $2 LIMIT 1',
@@ -484,12 +416,12 @@ function socketHandler(io) {
 
             // Start timer for new question
             startQuestionTimer(sessionId, nextQuestion.time_limit, io);
-          }, 5000);
+          }, 5050);
         } else {
           // No more questions - end the quiz
           setTimeout(async () => {
             await endQuiz(sessionId, io);
-          }, 5000);
+          }, 5050);
         }
 
         console.log(`Question ended early for session ${sessionId}`);
@@ -556,6 +488,25 @@ function socketHandler(io) {
         });
 
         console.log(`Answer submitted by participant ${participantId} for question ${question.id}`);
+
+        // === NEW: Check if all participants have answered ===
+        const totalParticipants = sessionState.participants.size;
+        const responsesResult = await pool.query(
+          'SELECT COUNT(DISTINCT participant_id) AS count FROM responses WHERE session_id = $1 AND question_id = $2',
+          [sessionId, question.id]
+        );
+        const responsesCount = parseInt(responsesResult.rows[0].count, 10);
+        if (responsesCount === totalParticipants) {
+          // All participants have answered: clear timer and show results
+          if (sessionState.questionTimer) {
+            clearTimeout(sessionState.questionTimer);
+            sessionState.questionTimer = null;
+          }
+          const results = await getQuestionResults(sessionId, question.id);
+          io.to(`session-${sessionId}`).emit('question-results', results);
+          console.log(`All participants answered for question ${question.id}, results shown immediately.`);
+        }
+        // === END NEW ===
       } catch (error) {
         console.error('Submit answer error:', error);
         socket.emit('error', { message: 'Failed to submit answer' });
@@ -583,6 +534,17 @@ function socketHandler(io) {
       } catch (error) {
         console.error('Show results error:', error);
         socket.emit('error', { message: 'Failed to show results' });
+      }
+    });
+
+    // Listen for finish-quiz event from creator
+    socket.on('finish-quiz', async (data) => {
+      try {
+        const { sessionId } = data;
+        await endQuiz(sessionId, io);
+      } catch (error) {
+        console.error('Finish quiz error:', error);
+        socket.emit('error', { message: 'Failed to finish quiz' });
       }
     });
 
@@ -668,68 +630,10 @@ function startQuestionTimer(sessionId, timeLimit, io) {
 
       // Get question results and show them
       const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
-      
       // Show results to all participants
       io.to(`session-${sessionId}`).emit('question-results', results);
-      
-      // Check if there are more questions
-      console.log(`Checking for next question: quizId=${sessionState.quizId}, currentIndex=${sessionState.currentQuestionIndex}, nextIndex=${sessionState.currentQuestionIndex + 1}`);
-      const nextQuestionResult = await pool.query(
-        'SELECT * FROM questions WHERE quiz_id = $1 ORDER BY order_index OFFSET $2 LIMIT 1',
-        [sessionState.quizId, sessionState.currentQuestionIndex + 1]
-      );
-      console.log(`Next question query result: ${nextQuestionResult.rows.length} questions found`);
-
-      if (nextQuestionResult.rows.length > 0) {
-        // There are more questions - wait 5 seconds then move to next
-        setTimeout(async () => {
-          const nextQuestion = nextQuestionResult.rows[0];
-          // Parse correct_answers and options from JSON if needed
-          if (nextQuestion.correct_answers && typeof nextQuestion.correct_answers === 'string') {
-            try {
-              nextQuestion.correct_answers = JSON.parse(nextQuestion.correct_answers);
-            } catch (e) {}
-          }
-          if (nextQuestion.options && typeof nextQuestion.options === 'string') {
-            try {
-              nextQuestion.options = JSON.parse(nextQuestion.options);
-            } catch (e) {}
-          }
-          sessionState.currentQuestion = nextQuestion;
-          sessionState.currentQuestionIndex = sessionState.currentQuestionIndex + 1;
-
-          // Update session in database
-          await pool.query(
-            'UPDATE quiz_sessions SET current_question_index = $1 WHERE id = $2',
-            [sessionState.currentQuestionIndex, sessionId]
-          );
-
-          // Broadcast next question
-          io.to(`session-${sessionId}`).emit('next-question', {
-            question: {
-              id: nextQuestion.id,
-              text: nextQuestion.question_text,
-              type: nextQuestion.question_type,
-              options: nextQuestion.options,
-              timeLimit: nextQuestion.time_limit,
-              imageUrl: nextQuestion.image_url
-            },
-            questionIndex: sessionState.currentQuestionIndex
-          });
-
-          // Start timer for new question
-          startQuestionTimer(sessionId, nextQuestion.time_limit, io);
-        }, 5000);
-      } else {
-        // No more questions - end the quiz
-        console.log(`No more questions found for session ${sessionId}, ending quiz in 5 seconds...`);
-        setTimeout(async () => {
-          console.log(`Calling endQuiz for session ${sessionId}...`);
-          await endQuiz(sessionId, io);
-        }, 5000);
-      }
-      
-      console.log(`Time's up for question in session ${sessionId}`);
+      // Do NOT auto-advance to the next question. Only admin can trigger next.
+      console.log(`Time's up for question in session ${sessionId}. Results shown, waiting for admin to advance.`);
     } catch (error) {
       console.error('Timer error:', error);
     }

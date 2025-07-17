@@ -79,44 +79,17 @@ router.post('/join', async (req, res) => {
       return res.status(400).json({ error: 'Quiz is not active' });
     }
 
-    // Find or create active session
-    console.log('Looking for active session for quiz ID:', quiz.id);
-    let sessionResult = await pool.query(
+    // Find the latest waiting or active session for this quiz
+    const sessionResult = await pool.query(
       'SELECT id FROM quiz_sessions WHERE quiz_id = $1 AND status IN ($2, $3) ORDER BY created_at DESC LIMIT 1',
       [quiz.id, 'waiting', 'active']
     );
 
-    console.log('Session search result:', sessionResult.rows);
-
-    let sessionId;
     if (sessionResult.rows.length === 0) {
-      // Create a new session automatically
-      console.log('No active session found, creating new session for quiz ID:', quiz.id);
-      const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      
-      const newSessionResult = await pool.query(
-        'INSERT INTO quiz_sessions (quiz_id, session_code, status) VALUES ($1, $2, $3) RETURNING id',
-        [quiz.id, sessionCode, 'waiting']
-      );
-      
-      sessionId = newSessionResult.rows[0].id;
-      console.log('Created new session with ID:', sessionId);
-
-      // Clear any old participants from previous sessions of this quiz
-      await pool.query(
-        'DELETE FROM participants WHERE session_id IN (SELECT id FROM quiz_sessions WHERE quiz_id = $1 AND id != $2)',
-        [quiz.id, sessionId]
-      );
-
-      // Also clear participants from the current session to ensure clean slate
-      await pool.query(
-        'DELETE FROM participants WHERE session_id = $1',
-        [sessionId]
-      );
-    } else {
-      sessionId = sessionResult.rows[0].id;
-      console.log('Using existing session with ID:', sessionId);
+      return res.status(404).json({ error: 'No available session for this quiz. Please wait for the host to start a new session.' });
     }
+
+    const sessionId = sessionResult.rows[0].id;
 
     // Check if participant already exists in this session
     const existingParticipant = await pool.query(
@@ -128,7 +101,7 @@ router.post('/join', async (req, res) => {
       return res.status(400).json({ error: 'Participant name already taken in this session' });
     }
 
-    // Also check if participant exists in any active session for this quiz
+    // Also check if participant exists in any active session for this quiz (should not happen, but keep for safety)
     const existingParticipantInQuiz = await pool.query(
       `SELECT p.id, p.name, qs.id as session_id 
        FROM participants p 
@@ -644,10 +617,8 @@ router.post('/:quizId/session', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Quiz not found' });
     }
 
-    // Generate session code
+    // Always create a new session, regardless of existing sessions
     const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-    // Create session
     const sessionResult = await pool.query(
       'INSERT INTO quiz_sessions (quiz_id, session_code, status) VALUES ($1, $2, $3) RETURNING *',
       [quizId, sessionCode, 'waiting']

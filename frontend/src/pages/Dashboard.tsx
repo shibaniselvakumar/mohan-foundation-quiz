@@ -225,18 +225,9 @@ const Dashboard: React.FC = () => {
                     style={{ flex: 1 }}
                     onClick={async () => {
                       try {
-                        // Get or create active session
-                        const response = await axios.get(`/api/quiz/${quiz.id}/active-session`);
-                        let sessionId;
-                        
-                        if (response.data.session) {
-                          sessionId = response.data.session.id;
-                        } else {
-                          // Create a new session
-                          const createResponse = await axios.post(`/api/quiz/${quiz.id}/session`);
-                          sessionId = createResponse.data.session.id;
-                        }
-                        
+                        // Always create a new session
+                        const createResponse = await axios.post(`/api/quiz/${quiz.id}/session`);
+                        const sessionId = createResponse.data.session.id;
                         // Navigate to the creator session view
                         window.location.href = `/session/${sessionId}/creator`;
                       } catch (error: any) {

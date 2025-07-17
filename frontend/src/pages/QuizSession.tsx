@@ -114,9 +114,32 @@ const QuizSession: React.FC = () => {
       setParticipantCount(data.totalParticipants);
     });
 
+    // Listen for show-question event (admin-paced)
+    socket.on('show-question', (data) => {
+      setSessionState('active');
+      setCurrentQuestion({
+        id: data.question.id,
+        text: data.question.text,
+        type: data.question.type,
+        options: data.question.options,
+        timeLimit: data.question.timeLimit
+      });
+      setQuestionIndex(data.questionIndex);
+      setTimeLeft(data.question.timeLimit);
+      setMyAnswer(null);
+      setAnswerSubmitted(false);
+      setQuestionResults(null);
+    });
+
     socket.on('quiz-started', (data) => {
       setSessionState('active');
-      setCurrentQuestion(data.question);
+      setCurrentQuestion({
+        id: data.question.id,
+        text: data.question.text,
+        type: data.question.type,
+        options: data.question.options,
+        timeLimit: data.question.timeLimit
+      });
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
       setMyAnswer(null);
@@ -126,7 +149,13 @@ const QuizSession: React.FC = () => {
 
     socket.on('next-question', (data) => {
       setSessionState('active');
-      setCurrentQuestion(data.question);
+      setCurrentQuestion({
+        id: data.question.id,
+        text: data.question.text,
+        type: data.question.type,
+        options: data.question.options,
+        timeLimit: data.question.timeLimit
+      });
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
       setMyAnswer(null);
@@ -143,7 +172,6 @@ const QuizSession: React.FC = () => {
       setSessionState('results');
       setQuestionResults(results);
       setResultsCountdown(5);
-      
       // Start countdown for next question
       const countdownInterval = setInterval(() => {
         setResultsCountdown(prev => {
@@ -157,12 +185,8 @@ const QuizSession: React.FC = () => {
     });
 
     socket.on('quiz-ended', (data) => {
-      console.log('=== QUIZ ENDED EVENT RECEIVED ===');
-      console.log('Data received:', data);
-      console.log('Current session state:', sessionState);
       setSessionState('ended');
       setLeaderboard(data.leaderboard);
-      console.log('Session state set to ended, leaderboard updated');
     });
 
     socket.on('answer-submitted', (data) => {
@@ -177,6 +201,7 @@ const QuizSession: React.FC = () => {
       socket.off('joined-session');
       socket.off('participant-joined');
       socket.off('participant-left');
+      socket.off('show-question');
       socket.off('quiz-started');
       socket.off('next-question');
       socket.off('time-up');
