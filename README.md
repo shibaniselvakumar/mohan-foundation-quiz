@@ -74,11 +74,7 @@ To support the mission of Mohan Foundation by providing a fun, informative, and 
 
    ```env
    # Database Configuration
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_NAME=ngo_quiz
-   DB_USER=your_username
-   DB_PASSWORD=your_password
+   DATABASE_URL=postgresql://username:password@localhost:5432/ngo_quiz
 
    # JWT Configuration
    JWT_SECRET=your_jwt_secret_key
