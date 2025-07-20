@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import Login from './pages/Login';
@@ -9,6 +9,7 @@ import QuizCreator from './pages/QuizCreator';
 import QuizTaker from './pages/QuizTaker';
 import QuizSession from './pages/QuizSession';
 import QuizSessionCreator from './pages/QuizSessionCreator';
+import QuizAnalytics from './components/QuizAnalytics';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import './App.css';
@@ -91,6 +92,13 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return user ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 };
 
+// Helper wrapper to extract params and pass to QuizAnalytics
+const AnalyticsPage: React.FC = () => {
+  const { quizId, sessionId } = useParams<{ quizId: string; sessionId: string }>();
+  if (!quizId || !sessionId) return <div className="container">Invalid analytics URL</div>;
+  return <QuizAnalytics quizId={parseInt(quizId)} sessionId={parseInt(sessionId)} />;
+};
+
 const AppContent: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
@@ -166,6 +174,14 @@ const AppContent: React.FC = () => {
                     <QuizSessionCreator />
                   </ProtectedRoute>
                 } 
+              />
+              <Route
+                path="/analytics/:quizId/:sessionId"
+                element={
+                  <ProtectedRoute>
+                    <AnalyticsPage />
+                  </ProtectedRoute>
+                }
               />
               
               {/* 404 Route */}
@@ -248,6 +264,14 @@ const AppContent: React.FC = () => {
                   <QuizSessionCreator />
                 </ProtectedRoute>
               } 
+            />
+            <Route
+              path="/analytics/:quizId/:sessionId"
+              element={
+                <ProtectedRoute>
+                  <AnalyticsPage />
+                </ProtectedRoute>
+              }
             />
             
             {/* 404 Route */}

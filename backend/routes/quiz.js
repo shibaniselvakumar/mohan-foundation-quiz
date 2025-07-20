@@ -852,4 +852,36 @@ router.get('/:quizId/stats', authenticateToken, async (req, res) => {
   }
 });
 
+// Get all sessions for a quiz
+router.get('/:quizId/sessions', authenticateToken, async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const creatorId = req.user.id;
+
+    // Verify quiz ownership
+    const quizResult = await pool.query(
+      'SELECT id FROM quizzes WHERE id = $1 AND creator_id = $2',
+      [quizId, creatorId]
+    );
+
+    if (quizResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+
+    // Get all sessions for this quiz
+    const sessionsResult = await pool.query(
+      `SELECT id, session_code, status, created_at, started_at, ended_at
+       FROM quiz_sessions
+       WHERE quiz_id = $1
+       ORDER BY created_at DESC`,
+      [quizId]
+    );
+
+    res.json({ sessions: sessionsResult.rows });
+  } catch (error) {
+    console.error('Get quiz sessions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router; 

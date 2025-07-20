@@ -20,8 +20,7 @@ const drawerWidth = 240;
 
 const navItems = [
   { label: 'Dashboard', icon: <DashboardIcon color="primary" />, path: '/dashboard' },
-  { label: 'Create Quiz', icon: <AddCircleIcon color="secondary" />, path: '/quiz/create' },
-  { label: 'Analytics', icon: <BarChartIcon color="primary" />, path: '/analytics' },
+  { label: 'Create Quiz', icon: <AddCircleIcon color="secondary" />, path: '/quiz/create' }
 ];
 
 const Sidebar: React.FC = () => {

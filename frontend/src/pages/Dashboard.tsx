@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import QuizAnalytics from '../components/QuizAnalytics';
+import Modal from '@mui/material/Modal';
 
 interface Quiz {
   id: number;
@@ -9,12 +11,19 @@ interface Quiz {
   access_code: string;
   status: string;
   created_at: string;
+  latestSessionId?: string; // Added for analytics link
 }
 
 const Dashboard: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
+  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchQuizzes();
@@ -66,6 +75,22 @@ const Dashboard: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const handleViewAnalytics = async (quiz: Quiz) => {
+    setSelectedQuiz(quiz);
+    setAnalyticsModalOpen(true);
+    setSelectedSessionId(null);
+    setLoadingSessions(true);
+    setSessionsError(null);
+    try {
+      const response = await axios.get(`/api/quiz/${quiz.id}/sessions`);
+      setSessions(response.data.sessions);
+    } catch (error: any) {
+      setSessionsError(error.response?.data?.error || 'Failed to fetch sessions');
+    } finally {
+      setLoadingSessions(false);
+    }
   };
 
   if (loading) {
@@ -221,6 +246,15 @@ const Dashboard: React.FC = () => {
                 )}
                 {quiz.status === 'active' && (
                   <button
+                    className="btn btn-info"
+                    style={{ flex: 1 }}
+                    onClick={() => handleViewAnalytics(quiz)}
+                  >
+                    View Analytics
+                  </button>
+                )}
+                {quiz.status === 'active' && (
+                  <button
                     className="btn btn-primary"
                     style={{ flex: 1 }}
                     onClick={async () => {
@@ -275,6 +309,78 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Analytics Modal */}
+      <Modal
+        open={analyticsModalOpen}
+        onClose={() => setAnalyticsModalOpen(false)}
+        aria-labelledby="analytics-modal-title"
+        aria-describedby="analytics-modal-description"
+      >
+        <div className="modal-content" style={{ background: '#fff', padding: 32, borderRadius: 12, maxWidth: 900, margin: '4rem auto', outline: 'none', maxHeight: '80vh', overflowY: 'auto' }}>
+          <h2 id="analytics-modal-title" style={{ marginBottom: 24 }}>
+            {selectedQuiz ? `Analytics for: ${selectedQuiz.title}` : 'Analytics'}
+          </h2>
+          {loadingSessions ? (
+            <div>Loading sessions...</div>
+          ) : sessionsError ? (
+            <div className="alert alert-error">{sessionsError}</div>
+          ) : (
+            <>
+              {selectedSessionId ? (
+                <>
+                  <button className="btn btn-secondary" style={{ marginBottom: 16 }} onClick={() => setSelectedSessionId(null)}>
+                    Back to Sessions
+                  </button>
+                  <QuizAnalytics quizId={selectedQuiz!.id} sessionId={selectedSessionId} />
+                </>
+              ) : (
+                <>
+                  <h3 style={{ marginBottom: 16 }}>Quiz Sessions</h3>
+                  {sessions.length === 0 ? (
+                    <div>No sessions found for this quiz.</div>
+                  ) : (
+                    <table className="analytics-table" style={{ width: '100%', marginBottom: 24 }}>
+                      <thead>
+                        <tr>
+                          <th>Session Code</th>
+                          <th>Status</th>
+                          <th>Created At</th>
+                          <th>Started At</th>
+                          <th>Ended At</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sessions.map(session => (
+                          <tr key={session.id}>
+                            <td>{session.session_code}</td>
+                            <td>{session.status}</td>
+                            <td>{session.created_at ? new Date(session.created_at).toLocaleString() : '-'}</td>
+                            <td>{session.started_at ? new Date(session.started_at).toLocaleString() : '-'}</td>
+                            <td>{session.ended_at ? new Date(session.ended_at).toLocaleString() : '-'}</td>
+                            <td>
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => setSelectedSessionId(session.id)}
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => setAnalyticsModalOpen(false)}>
+            Close
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 };
