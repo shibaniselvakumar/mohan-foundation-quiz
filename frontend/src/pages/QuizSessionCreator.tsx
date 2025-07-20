@@ -292,6 +292,9 @@ const QuizSessionCreator: React.FC = () => {
     };
   };
 
+  // Define questionEnded based on whether stats are showing or timer is 0
+  const questionEnded = sessionState === 'results' || timeLeft === 0;
+
   if (error) {
     return (
       <div className="container">
@@ -391,7 +394,6 @@ const QuizSessionCreator: React.FC = () => {
                     opacity: 0.8,
                   })
                 }}
-                startIcon={sessionState !== 'waiting' ? <CircularProgress size={20} color="inherit" /> : null}
               >
                 {sessionState === 'waiting'
                   ? `Start Quiz (${participantCount} participants)`
@@ -408,16 +410,19 @@ const QuizSessionCreator: React.FC = () => {
               )}
               {sessionState === 'active' || sessionState === 'results' ? (
                 <>
-                  <button
+                  <Button
                     onClick={() => {
                       socket?.emit('end-question', { sessionId: parseInt(sessionId!) });
                       setEndQuestionDisabled(true);
                     }}
-                    className="btn btn-secondary"
-                    disabled={endQuestionDisabled || sessionState !== 'active' || questionIndex === questions.length - 1}
+                    variant="contained"
+                    color="secondary"
+                    size="large"
+                    fullWidth
+                    disabled={questionEnded}
                   >
                     End Question Early
-                  </button>
+                  </Button>
                   {questionIndex === questions.length - 1 && (
                     <button
                       onClick={() => {
@@ -513,16 +518,16 @@ const QuizSessionCreator: React.FC = () => {
               <h3 style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>Question Results</h3>
               <Box className="results-summary" sx={{ display: 'flex', justifyContent: 'center', gap: 4, width: '100%', maxWidth: 900, mb: 4 }}>
                 <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-                  <div className="stat-number">{questionResults.totalResponses}</div>
+                  <div className="stat-number">{questionResults ? questionResults.totalResponses : 0}</div>
                   <div className="stat-label">Total Responses</div>
                 </Box>
                 <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-                  <div className="stat-number">{questionResults.correctResponses}</div>
+                  <div className="stat-number">{questionResults ? questionResults.correctResponses : 0}</div>
                   <div className="stat-label">Correct Answers</div>
                 </Box>
                 <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
                   <div className="stat-number">
-                    {questionResults.totalResponses > 0 
+                    {questionResults && questionResults.totalResponses > 0 
                       ? Math.round((questionResults.correctResponses / questionResults.totalResponses) * 100)
                       : 0}%
                   </div>
@@ -628,16 +633,16 @@ const QuizSessionCreator: React.FC = () => {
             <h3 style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>Live Question Stats</h3>
             <Box className="results-summary" sx={{ display: 'flex', justifyContent: 'center', gap: 4, width: '100%', maxWidth: 900, mb: 4 }}>
               <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-                <div className="stat-number">{currentStats.totalResponses}</div>
+                <div className="stat-number">{currentStats ? currentStats.totalResponses : 0}</div>
                 <div className="stat-label">Total Responses</div>
               </Box>
               <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-                <div className="stat-number">{currentStats.correctResponses}</div>
+                <div className="stat-number">{currentStats ? currentStats.correctResponses : 0}</div>
                 <div className="stat-label">Correct Answers</div>
               </Box>
               <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
                 <div className="stat-number">
-                  {currentStats.totalResponses > 0 
+                  {currentStats && currentStats.totalResponses > 0 
                     ? Math.round((currentStats.correctResponses / currentStats.totalResponses) * 100)
                     : 0}%
                 </div>
@@ -645,7 +650,7 @@ const QuizSessionCreator: React.FC = () => {
               </Box>
             </Box>
             {/* Chart */}
-            {currentStats.statistics && (
+            {currentStats && currentStats.statistics && (
               <Box className="chart-container" sx={{ width: '100%', maxWidth: 1000, height: { xs: 240, md: 400 }, mb: 4 }}>
                 <Bar data={{
                   labels: currentStats.statistics.map(stat => stat.option),
@@ -676,7 +681,7 @@ const QuizSessionCreator: React.FC = () => {
             {/* Participant Results */}
             <Box className="participant-results" sx={{ width: '100%', maxWidth: 900, mt: 2 }}>
               <h4>Participant Results</h4>
-              {currentStats.participants.map((participant, index) => (
+              {currentStats && currentStats.participants.map((participant, index) => (
                 <div key={index} className={`participant-result ${participant.isCorrect ? 'correct' : 'incorrect'}`}> 
                   <span className="participant-name">{participant.name}</span>
                   <span className="result-status">{participant.isCorrect ? '✓ Correct' : '✗ Incorrect'}</span>
