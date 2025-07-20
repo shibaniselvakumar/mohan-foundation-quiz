@@ -369,38 +369,48 @@ function socketHandler(io) {
           sessionState.questionTimer = null;
         }
 
-        // Find all participants who have not submitted
+        // Always auto-submit and show stats, even for the last question
         const participants = Array.from(sessionState.participants.values());
-        let pendingAutoSubmits = 0;
         for (const participant of participants) {
           const responseResult = await pool.query(
             'SELECT id FROM responses WHERE participant_id = $1 AND question_id = $2',
             [participant.id, sessionState.currentQuestion.id]
           );
           if (responseResult.rows.length === 0) {
-            // Emit auto-submit-request to this participant's socket
-            if (participant.socketId) {
-              io.to(participant.socketId).emit('auto-submit-request', {
-                questionId: sessionState.currentQuestion.id,
-                sessionId: sessionId
-              });
-              pendingAutoSubmits++;
+            // Use draft answer if available
+            let answer = null;
+            if (
+              draftAnswers[sessionId] &&
+              draftAnswers[sessionId][participant.id] &&
+              draftAnswers[sessionId][participant.id].questionId === sessionState.currentQuestion.id
+            ) {
+              answer = draftAnswers[sessionId][participant.id].answer;
             }
+            console.log('Inserting auto-submit for', participant.id, 'Answer:', answer);
+            const isCorrect = answer != null ? checkAnswer(answer, sessionState.currentQuestion) : false;
+            const pointsEarned = isCorrect ? sessionState.currentQuestion.points : sessionState.currentQuestion.negative_points;
+            await pool.query(
+              `INSERT INTO responses (
+                participant_id, question_id, session_id, answer, 
+                is_correct, points_earned, time_taken
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+              [
+                participant.id, sessionState.currentQuestion.id, sessionId,
+                JSON.stringify(answer ?? null), isCorrect, pointsEarned, sessionState.currentQuestion.time_limit
+              ]
+            );
+            await pool.query(
+              'UPDATE participants SET total_score = total_score + $1 WHERE id = $2',
+              [pointsEarned, participant.id]
+            );
+            participant.score += pointsEarned;
           }
         }
-
-        // Wait a short time for clients to auto-submit (e.g., 2 seconds)
-        setTimeout(async () => {
-          console.log('Processing auto-submits for session', sessionId);
-          // After waiting, get the results
-          const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
-          // Show results to all participants (not the creator)
-          console.log('Emitting question-ended to participants only for session', sessionId);
-          socket.to(`session-${sessionId}`).emit('question-ended', { ...results, endedEarly: true });
-          // Also notify the creator to set their timer to 0
-          socket.emit('question-ended-creator', { ...results, endedEarly: true });
-          console.log(`Question ended early for session ${sessionId}`);
-        }, 2000);
+        // After all auto-submits, show stats (do NOT advance or finish quiz automatically)
+        const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
+        socket.to(`session-${sessionId}`).emit('question-ended', { ...results, endedEarly: true });
+        socket.emit('question-ended-creator', { ...results, endedEarly: true });
+        console.log(`Question ended early for session ${sessionId}`);
       } catch (error) {
         console.error('End question error:', error);
         socket.emit('error', { message: 'Failed to end question' });
