@@ -642,11 +642,7 @@ const QuizSession: React.FC = () => {
           }}>
             <div className="stats-header">
               <h2 className="stats-title">Question Results</h2>
-              {resultsCountdown > 0 && (
-                <div className="results-countdown">
-                  Next question in {resultsCountdown} seconds...
-                </div>
-              )}
+              {/* Removed resultsCountdown display */}
             </div>
 
             <div className="stats-summary" style={{ width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'center', gap: '2rem', margin: '2rem 0' }}>
