@@ -5,6 +5,9 @@ const { v4: uuidv4 } = require('uuid');
 const activeSessions = new Map();
 const participantSockets = new Map();
 
+// In-memory storage for draft answers: { [sessionId]: { [participantId]: { questionId, answer } } }
+const draftAnswers = {};
+
 function socketHandler(io) {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -338,6 +341,9 @@ function socketHandler(io) {
           questionIndex: nextQuestionIndex
         });
 
+        // Start timer for the new question
+        startQuestionTimer(sessionId, question.time_limit, io);
+
         // (No auto-advance logic here; admin controls pacing)
         console.log(`Next question (${nextQuestionIndex}) for session ${sessionId} (admin-paced)`);
       } catch (error) {
@@ -363,68 +369,38 @@ function socketHandler(io) {
           sessionState.questionTimer = null;
         }
 
-        // Get question results
-        const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
-
-        // Show results to all participants and creator
-        console.log('Emitting question-ended to session', sessionId);
-        io.to(`session-${sessionId}`).emit('question-ended', results);
-
-        // (Keep the rest of the logic for next question/quiz end as is)
-        // Check if there are more questions
-        const nextQuestionResult = await pool.query(
-          'SELECT * FROM questions WHERE quiz_id = $1 ORDER BY order_index OFFSET $2 LIMIT 1',
-          [sessionState.quizId, sessionState.currentQuestionIndex + 1]
-        );
-
-        if (nextQuestionResult.rows.length > 0) {
-          // There are more questions - wait 5 seconds then move to next
-          setTimeout(async () => {
-            const nextQuestion = nextQuestionResult.rows[0];
-            // Parse correct_answers and options from JSON if needed
-            if (nextQuestion.correct_answers && typeof nextQuestion.correct_answers === 'string') {
-              try {
-                nextQuestion.correct_answers = JSON.parse(nextQuestion.correct_answers);
-              } catch (e) {}
+        // Find all participants who have not submitted
+        const participants = Array.from(sessionState.participants.values());
+        let pendingAutoSubmits = 0;
+        for (const participant of participants) {
+          const responseResult = await pool.query(
+            'SELECT id FROM responses WHERE participant_id = $1 AND question_id = $2',
+            [participant.id, sessionState.currentQuestion.id]
+          );
+          if (responseResult.rows.length === 0) {
+            // Emit auto-submit-request to this participant's socket
+            if (participant.socketId) {
+              io.to(participant.socketId).emit('auto-submit-request', {
+                questionId: sessionState.currentQuestion.id,
+                sessionId: sessionId
+              });
+              pendingAutoSubmits++;
             }
-            if (nextQuestion.options && typeof nextQuestion.options === 'string') {
-              try {
-                nextQuestion.options = JSON.parse(nextQuestion.options);
-              } catch (e) {}
-            }
-            sessionState.currentQuestion = nextQuestion;
-            sessionState.currentQuestionIndex = sessionState.currentQuestionIndex + 1;
-
-            // Update session in database
-            await pool.query(
-              'UPDATE quiz_sessions SET current_question_index = $1 WHERE id = $2',
-              [sessionState.currentQuestionIndex, sessionId]
-            );
-
-            // Broadcast next question
-            io.to(`session-${sessionId}`).emit('next-question', {
-              question: {
-                id: nextQuestion.id,
-                text: nextQuestion.question_text,
-                type: nextQuestion.question_type,
-                options: nextQuestion.options,
-                timeLimit: nextQuestion.time_limit,
-                imageUrl: nextQuestion.image_url
-              },
-              questionIndex: sessionState.currentQuestionIndex
-            });
-
-            // Start timer for new question
-            startQuestionTimer(sessionId, nextQuestion.time_limit, io);
-          }, 5050);
-        } else {
-          // No more questions - end the quiz
-          setTimeout(async () => {
-            await endQuiz(sessionId, io);
-          }, 5050);
+          }
         }
 
-        console.log(`Question ended early for session ${sessionId}`);
+        // Wait a short time for clients to auto-submit (e.g., 2 seconds)
+        setTimeout(async () => {
+          console.log('Processing auto-submits for session', sessionId);
+          // After waiting, get the results
+          const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
+          // Show results to all participants (not the creator)
+          console.log('Emitting question-ended to participants only for session', sessionId);
+          socket.to(`session-${sessionId}`).emit('question-ended', { ...results, endedEarly: true });
+          // Also notify the creator to set their timer to 0
+          socket.emit('question-ended-creator', { ...results, endedEarly: true });
+          console.log(`Question ended early for session ${sessionId}`);
+        }, 2000);
       } catch (error) {
         console.error('End question error:', error);
         socket.emit('error', { message: 'Failed to end question' });
@@ -548,6 +524,33 @@ function socketHandler(io) {
       }
     });
 
+    // Creator requests current stats for the active question
+    socket.on('get-current-stats', async (data) => {
+      try {
+        const { sessionId } = data;
+        const sessionState = activeSessions.get(sessionId);
+        if (!sessionState || !sessionState.currentQuestion) {
+          socket.emit('error', { message: 'No active question' });
+          return;
+        }
+        const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
+        socket.emit('current-stats', results);
+      } catch (error) {
+        console.error('Get current stats error:', error);
+        socket.emit('error', { message: 'Failed to get current stats' });
+      }
+    });
+
+    // Save draft answer from taker
+    socket.on('save-draft-answer', (data) => {
+      const { sessionId, participantId, questionId, answer } = data;
+      if (!sessionId || !participantId || !questionId) return;
+      if (!draftAnswers[sessionId]) draftAnswers[sessionId] = {};
+      draftAnswers[sessionId][participantId] = { questionId, answer };
+      console.log('DRAFT ANSWER RECEIVED:', data);
+      console.log('Current draftAnswers:', JSON.stringify(draftAnswers));
+    });
+
     // Disconnect handling
     socket.on('disconnect', async () => {
       console.log('User disconnected:', socket.id);
@@ -594,19 +597,31 @@ function startQuestionTimer(sessionId, timeLimit, io) {
   const sessionState = activeSessions.get(sessionId);
   if (!sessionState) return;
 
+  console.log(`Timer started for session ${sessionId} for question ${sessionState.currentQuestion.id} for ${timeLimit} seconds`);
+
   sessionState.questionTimer = setTimeout(async () => {
     try {
-      // Auto-submit unanswered responses
+      // For each participant who hasn't submitted, use their draft answer if available
       const participants = Array.from(sessionState.participants.values());
       for (const participant of participants) {
-        // Check if participant already answered
         const responseResult = await pool.query(
           'SELECT id FROM responses WHERE participant_id = $1 AND question_id = $2',
           [participant.id, sessionState.currentQuestion.id]
         );
-
         if (responseResult.rows.length === 0) {
-          // Auto-submit with wrong answer
+          // Use draft answer if available
+          let answer = null;
+          if (
+            draftAnswers[sessionId] &&
+            draftAnswers[sessionId][participant.id] &&
+            draftAnswers[sessionId][participant.id].questionId === sessionState.currentQuestion.id
+          ) {
+            answer = draftAnswers[sessionId][participant.id].answer;
+          }
+          console.log('Inserting auto-submit for', participant.id, 'Answer:', answer);
+          // Defensive: checkAnswer(null) is always false
+          const isCorrect = answer != null ? checkAnswer(answer, sessionState.currentQuestion) : false;
+          const pointsEarned = isCorrect ? sessionState.currentQuestion.points : sessionState.currentQuestion.negative_points;
           await pool.query(
             `INSERT INTO responses (
               participant_id, question_id, session_id, answer, 
@@ -614,25 +629,20 @@ function startQuestionTimer(sessionId, timeLimit, io) {
             ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [
               participant.id, sessionState.currentQuestion.id, sessionId,
-              JSON.stringify(null), false, sessionState.currentQuestion.negative_points, timeLimit
+              JSON.stringify(answer ?? null), isCorrect, pointsEarned, timeLimit
             ]
           );
-
           // Update score
           await pool.query(
             'UPDATE participants SET total_score = total_score + $1 WHERE id = $2',
-            [sessionState.currentQuestion.negative_points, participant.id]
+            [pointsEarned, participant.id]
           );
-
-          participant.score += sessionState.currentQuestion.negative_points;
+          participant.score += pointsEarned;
         }
       }
-
-      // Get question results and show them
+      // After all auto-submits, show stats
       const results = await getQuestionResults(sessionId, sessionState.currentQuestion.id);
-      // Show results to all participants
-      io.to(`session-${sessionId}`).emit('question-results', results);
-      // Do NOT auto-advance to the next question. Only admin can trigger next.
+      io.to(`session-${sessionId}`).emit('question-ended', results);
       console.log(`Time's up for question in session ${sessionId}. Results shown, waiting for admin to advance.`);
     } catch (error) {
       console.error('Timer error:', error);
@@ -700,6 +710,13 @@ async function getQuestionResults(sessionId, questionId) {
   );
 
   const question = questionResult.rows[0];
+  // Defensive: parse options/correct_answers if needed
+  if (typeof question.options === 'string') {
+    try { question.options = JSON.parse(question.options); } catch (e) { question.options = []; }
+  }
+  if (typeof question.correct_answers === 'string') {
+    try { question.correct_answers = JSON.parse(question.correct_answers); } catch (e) { question.correct_answers = []; }
+  }
   let statistics = {};
 
   switch (question.question_type) {

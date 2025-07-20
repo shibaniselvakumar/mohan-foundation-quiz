@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../contexts/SocketContext';
 import { Bar } from 'react-chartjs-2';
@@ -75,6 +75,10 @@ const QuizSessionCreator: React.FC = () => {
   const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<Participant[]>([]);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [currentStats, setCurrentStats] = useState<QuestionResult | null>(null);
+  const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [endQuestionDisabled, setEndQuestionDisabled] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -127,10 +131,17 @@ const QuizSessionCreator: React.FC = () => {
     });
 
     socket.on('question-ended', (results) => {
-      console.log('question-ended received, setting timeLeft to 0 and showing results overlay', results);
-      setSessionState('results');
-      setQuestionResults(results);
-      setTimeLeft(0);
+      // Only show stats overlay if not immediately after ending early
+      if (sessionState !== 'active') {
+        console.log('question-ended received, setting timeLeft to 0 and showing results overlay', results);
+        setSessionState('results');
+        setQuestionResults(results);
+        setTimeLeft(0);
+      } else {
+        // Just update the timer and results, but do not show overlay
+        setTimeLeft(0);
+        setQuestionResults(results);
+      }
     });
 
     socket.on('quiz-ended', (data) => {
@@ -180,6 +191,15 @@ const QuizSessionCreator: React.FC = () => {
       setQuestionResults(null);
     });
 
+    socket.on('current-stats', (results) => {
+      setCurrentStats(results);
+    });
+
+    socket.on('question-ended-creator', (data) => {
+      setTimeLeft(0);
+      // Do not show stats overlay
+    });
+
     return () => {
       socket.off('creator-joined');
       socket.off('participant-joined');
@@ -190,8 +210,10 @@ const QuizSessionCreator: React.FC = () => {
       socket.off('error');
       socket.off('quiz-started');
       socket.off('show-question');
+      socket.off('current-stats');
+      socket.off('question-ended-creator');
     };
-  }, [socket]);
+  }, [socket, sessionState]); // Added sessionState to dependency array
 
   // Timer effect
   useEffect(() => {
@@ -208,6 +230,18 @@ const QuizSessionCreator: React.FC = () => {
 
     return () => clearInterval(timer);
   }, [timeLeft, sessionState]);
+
+  // Reset endQuestionDisabled for each new question
+  useEffect(() => {
+    setEndQuestionDisabled(false);
+  }, [currentQuestion?.id]);
+
+  // Disable after timer runs out
+  useEffect(() => {
+    if (timeLeft === 0) {
+      setEndQuestionDisabled(true);
+    }
+  }, [timeLeft]);
 
   const startQuiz = () => {
     if (!socket || questions.length === 0) return;
@@ -375,9 +409,12 @@ const QuizSessionCreator: React.FC = () => {
               {sessionState === 'active' || sessionState === 'results' ? (
                 <>
                   <button
-                    onClick={() => socket?.emit('end-question', { sessionId: parseInt(sessionId!) })}
+                    onClick={() => {
+                      socket?.emit('end-question', { sessionId: parseInt(sessionId!) });
+                      setEndQuestionDisabled(true);
+                    }}
                     className="btn btn-secondary"
-                    disabled={sessionState !== 'active' || questionIndex === questions.length - 1}
+                    disabled={endQuestionDisabled || sessionState !== 'active' || questionIndex === questions.length - 1}
                   >
                     End Question Early
                   </button>
@@ -394,6 +431,23 @@ const QuizSessionCreator: React.FC = () => {
                   )}
                 </>
               ) : null}
+              {sessionState === 'active' && (
+                <button
+                  onClick={() => {
+                    setShowStatsModal(true);
+                    socket?.emit('get-current-stats', { sessionId: parseInt(sessionId!) });
+                    // Start polling for real-time updates
+                    if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+                    statsIntervalRef.current = setInterval(() => {
+                      socket?.emit('get-current-stats', { sessionId: parseInt(sessionId!) });
+                    }, 2000);
+                  }}
+                  className="btn btn-info"
+                  style={{ marginBottom: '1rem' }}
+                >
+                  Show Current Stats
+                </button>
+              )}
             </div>
           </div>
 
@@ -491,6 +545,19 @@ const QuizSessionCreator: React.FC = () => {
                   </div>
                 ))}
               </Box>
+              {/* Close button, only if not last question */}
+              {questionIndex < questions.length - 1 && (
+                <button
+                  onClick={() => {
+                    setSessionState('active');
+                    setQuestionResults(null);
+                  }}
+                  className="btn btn-primary"
+                  style={{ marginTop: '2rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
+                >
+                  Close
+                </button>
+              )}
             </Box>
           </Box>
         )}
@@ -535,6 +602,101 @@ const QuizSessionCreator: React.FC = () => {
           </div>
         )}
       </Paper>
+
+      {/* Modal overlay for current stats */}
+      {showStatsModal && currentStats && (
+        <Box
+          className="current-stats-modal"
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            bgcolor: 'rgba(0,0,0,0.7)',
+            zIndex: 2100,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            px: { xs: 1, md: 6 },
+            py: 4,
+            overflow: 'auto',
+          }}
+        >
+          <Box sx={{ background: '#fff', borderRadius: 4, p: 4, minWidth: 320, maxWidth: 900, width: '100%' }}>
+            <h3 style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>Live Question Stats</h3>
+            <Box className="results-summary" sx={{ display: 'flex', justifyContent: 'center', gap: 4, width: '100%', maxWidth: 900, mb: 4 }}>
+              <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                <div className="stat-number">{currentStats.totalResponses}</div>
+                <div className="stat-label">Total Responses</div>
+              </Box>
+              <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                <div className="stat-number">{currentStats.correctResponses}</div>
+                <div className="stat-label">Correct Answers</div>
+              </Box>
+              <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+                <div className="stat-number">
+                  {currentStats.totalResponses > 0 
+                    ? Math.round((currentStats.correctResponses / currentStats.totalResponses) * 100)
+                    : 0}%
+                </div>
+                <div className="stat-label">Success Rate</div>
+              </Box>
+            </Box>
+            {/* Chart */}
+            {currentStats.statistics && (
+              <Box className="chart-container" sx={{ width: '100%', maxWidth: 1000, height: { xs: 240, md: 400 }, mb: 4 }}>
+                <Bar data={{
+                  labels: currentStats.statistics.map(stat => stat.option),
+                  datasets: [
+                    {
+                      label: 'Responses',
+                      data: currentStats.statistics.map(stat => stat.count),
+                      backgroundColor: [
+                        'rgba(37, 99, 235, 0.8)',
+                        'rgba(220, 38, 38, 0.8)',
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(139, 92, 246, 0.8)',
+                      ],
+                      borderColor: [
+                        'rgba(37, 99, 235, 1)',
+                        'rgba(220, 38, 38, 1)',
+                        'rgba(16, 185, 129, 1)',
+                        'rgba(245, 158, 11, 1)',
+                        'rgba(139, 92, 246, 1)',
+                      ],
+                      borderWidth: 1,
+                    },
+                  ],
+                }} options={{ responsive: true, maintainAspectRatio: false, aspectRatio: 3 }} height={400} />
+              </Box>
+            )}
+            {/* Participant Results */}
+            <Box className="participant-results" sx={{ width: '100%', maxWidth: 900, mt: 2 }}>
+              <h4>Participant Results</h4>
+              {currentStats.participants.map((participant, index) => (
+                <div key={index} className={`participant-result ${participant.isCorrect ? 'correct' : 'incorrect'}`}> 
+                  <span className="participant-name">{participant.name}</span>
+                  <span className="result-status">{participant.isCorrect ? '✓ Correct' : '✗ Incorrect'}</span>
+                </div>
+              ))}
+            </Box>
+            <button
+              onClick={() => {
+                setShowStatsModal(false);
+                setCurrentStats(null);
+                if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+              }}
+              className="btn btn-primary"
+              style={{ marginTop: '2rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
+            >
+              Close
+            </button>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../contexts/SocketContext';
 import { Bar } from 'react-chartjs-2';
@@ -71,6 +71,11 @@ const QuizSession: React.FC = () => {
   const [participantInfo, setParticipantInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultsCountdown, setResultsCountdown] = useState(5);
+
+  const myAnswerRef = useRef<any>(myAnswer);
+  useEffect(() => {
+    myAnswerRef.current = myAnswer;
+  }, [myAnswer]);
 
   // Calculate total steps (questions) if available
   // If you have totalQuestions in props or context, use it; otherwise, fallback to 0
@@ -197,6 +202,32 @@ const QuizSession: React.FC = () => {
       setError(data.message);
     });
 
+    socket.on('question-ended', (data) => {
+      setSessionState('results');
+      setQuestionResults(data);
+      setTimeLeft(0);
+      if (data.endedEarly) {
+        alert('This question was ended early by the host.');
+      }
+    });
+
+    socket.on('auto-submit-request', (data) => {
+      // Auto-submit the latest answer if present, otherwise submit null
+      let answerToSubmit = myAnswerRef.current;
+      if (
+        answerToSubmit === undefined ||
+        answerToSubmit === null ||
+        (Array.isArray(answerToSubmit) && answerToSubmit.length === 0)
+      ) {
+        answerToSubmit = null;
+      }
+      const timeTaken = currentQuestion && currentQuestion.timeLimit ? currentQuestion.timeLimit - timeLeft : 0;
+      socket.emit('submit-answer', {
+        answer: answerToSubmit,
+        timeTaken
+      });
+    });
+
     return () => {
       socket.off('joined-session');
       socket.off('participant-joined');
@@ -209,8 +240,66 @@ const QuizSession: React.FC = () => {
       socket.off('quiz-ended');
       socket.off('answer-submitted');
       socket.off('error');
+      socket.off('question-ended');
+      socket.off('auto-submit-request');
     };
-  }, [socket]);
+  }, [socket, timeLeft, currentQuestion]);
+
+  // Emit save-draft-answer on every answer change
+  useEffect(() => {
+    if (!socket || !participantInfo || !currentQuestion) return;
+    socket.emit('save-draft-answer', {
+      sessionId: participantInfo.sessionId,
+      participantId: participantInfo.participantId,
+      questionId: currentQuestion.id,
+      answer: myAnswer
+    });
+  }, [myAnswer, socket, participantInfo, currentQuestion]);
+
+  // Emit save-draft-answer on blur and visibility change
+  useEffect(() => {
+    if (!socket || !participantInfo || !currentQuestion) return;
+    const handler = () => {
+      socket.emit('save-draft-answer', {
+        sessionId: participantInfo.sessionId,
+        participantId: participantInfo.participantId,
+        questionId: currentQuestion.id,
+        answer: myAnswer
+      });
+    };
+    window.addEventListener('blur', handler);
+    document.addEventListener('visibilitychange', handler);
+    return () => {
+      window.removeEventListener('blur', handler);
+      document.removeEventListener('visibilitychange', handler);
+    };
+  }, [socket, participantInfo, currentQuestion, myAnswer]);
+
+  // Emit save-draft-answer on unmount
+  useEffect(() => {
+    return () => {
+      if (!socket || !participantInfo || !currentQuestion) return;
+      socket.emit('save-draft-answer', {
+        sessionId: participantInfo.sessionId,
+        participantId: participantInfo.participantId,
+        questionId: currentQuestion.id,
+        answer: myAnswer
+      });
+    };
+  }, [socket, participantInfo, currentQuestion, myAnswer]);
+
+  // Fallback: emit save-draft-answer when timer is low (2 seconds or less)
+  useEffect(() => {
+    if (!socket || !participantInfo || !currentQuestion) return;
+    if (timeLeft <= 2 && timeLeft > 0) {
+      socket.emit('save-draft-answer', {
+        sessionId: participantInfo.sessionId,
+        participantId: participantInfo.participantId,
+        questionId: currentQuestion.id,
+        answer: myAnswer
+      });
+    }
+  }, [timeLeft, socket, participantInfo, currentQuestion, myAnswer]);
 
   // Timer effect
   useEffect(() => {
