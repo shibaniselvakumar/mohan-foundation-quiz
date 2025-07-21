@@ -60,8 +60,8 @@ const QuizTaker: React.FC = () => {
   return (
     <>
       <QuizTopbar />
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', py: 4 }}>
-        <Card sx={{ maxWidth: 400, width: '100%', boxShadow: 6, borderRadius: 3 }}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'var(--background)', py: 4 }}>
+        <Card sx={{ maxWidth: 400, width: '100%', boxShadow: 6, borderRadius: 3, bgcolor: 'var(--surface)', color: 'var(--text)' }}>
           <CardContent>
             <Typography variant="h5" fontWeight={700} color="primary" gutterBottom align="center">
               Join a Quiz

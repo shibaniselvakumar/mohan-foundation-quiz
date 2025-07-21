@@ -48,15 +48,18 @@ const Login: React.FC = () => {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', py: 4 }}>
-      <Card sx={{ maxWidth: 400, width: '100%', boxShadow: 6, borderRadius: 3 }}>
-        <CardContent>
-          <Typography variant="h4" fontWeight={700} color="primary" align="center" gutterBottom>
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#18122B', py: 4 }}>
+      <Card sx={{ maxWidth: 400, width: '100%', boxShadow: 6, borderRadius: 3, bgcolor: '#4B1FA6', color: '#fff' }}>
+        {/* Top section: Welcome and subtitle */}
+        <Box sx={{ bgcolor: '#6C38FF', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12, p: 3, textAlign: 'center' }}>
+          <Typography variant="h4" fontWeight={700} sx={{ color: '#fff' }} gutterBottom>
             Welcome Back
           </Typography>
-          <Typography variant="body2" color="text.secondary" align="center" mb={2}>
+          <Typography variant="body2" sx={{ color: '#fff', mb: 2 }}>
             Sign in to your account to continue
           </Typography>
+        </Box>
+        <CardContent sx={{ p: 3, pb: 0 }}>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <Box component="form" onSubmit={handleSubmit} autoComplete="off" sx={{ mt: 2 }}>
             <TextField
@@ -84,44 +87,42 @@ const Login: React.FC = () => {
             <Button
               type="submit"
               variant="contained"
-              color="primary"
               fullWidth
               size="large"
-              sx={{ mt: 2, fontWeight: 700, borderRadius: 2 }}
+              sx={{ mt: 2, fontWeight: 700, borderRadius: 2, bgcolor: '#6C38FF', color: '#fff', '&:hover': { bgcolor: '#4B1FA6' } }}
               disabled={isSubmitting || !formData.username || !formData.password}
             >
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </Button>
           </Box>
-          <Divider sx={{ my: 3 }} />
+          <Divider sx={{ my: 3, bgcolor: '#fff', opacity: 0.2 }} />
           <Typography variant="body2" color="text.secondary" align="center" mb={1}>
             Don't have an account?
           </Typography>
           <Button
             component={Link}
             to="/register"
-            variant="outlined"
-            color="primary"
+            variant="contained"
             fullWidth
-            sx={{ mb: 2, fontWeight: 700, borderRadius: 2 }}
+            sx={{ mb: 2, fontWeight: 700, borderRadius: 2, bgcolor: '#6C38FF', color: '#fff', '&:hover': { bgcolor: '#4B1FA6' } }}
           >
             Create Account
           </Button>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ textAlign: 'center', mt: 2 }}>
-            <Typography variant="subtitle1" color="primary" fontWeight={600} gutterBottom>
+          <Divider sx={{ my: 2, bgcolor: '#fff', opacity: 0.2 }} />
+          {/* Bottom section: Want to join a quiz */}
+          <Box sx={{ bgcolor: '#6C38FF', color: '#fff', borderBottomLeftRadius: 12, borderBottomRightRadius: 12, p: 2, mt: 3, textAlign: 'center' }}>
+            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
               Want to join a quiz?
             </Typography>
-            <Typography variant="body2" color="text.secondary" mb={1}>
+            <Typography variant="body2" mb={1}>
               If you have an access code, you can join without creating an account.
             </Typography>
             <Button
               component={Link}
               to="/join"
               variant="contained"
-              color="secondary"
               fullWidth
-              sx={{ fontWeight: 700, borderRadius: 2 }}
+              sx={{ fontWeight: 700, borderRadius: 2, bgcolor: '#4B1FA6', color: '#fff', '&:hover': { bgcolor: '#18122B' } }}
             >
               Join Quiz
             </Button>

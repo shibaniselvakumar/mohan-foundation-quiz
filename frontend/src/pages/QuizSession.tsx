@@ -12,6 +12,7 @@ import {
   Legend,
 } from 'chart.js';
 import QuizTopbar from '../components/QuizTopbar';
+import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
 
 ChartJS.register(
@@ -457,7 +458,7 @@ const QuizSession: React.FC = () => {
       />
       <div className="quiz-container">
         <div className="quiz-header">
-          <div className="header-accent-bar" />
+          <div className="header-accent-bar" style={{ background: 'var(--accent)', height: 8, width: 48, borderRadius: 4, margin: '0 auto 16px auto' }} />
           <h1 className="quiz-title">
             {participantInfo?.name ? `${participantInfo.name}'s Quiz` : 'Live Quiz'}
           </h1>
@@ -629,7 +630,8 @@ const QuizSession: React.FC = () => {
             left: 0,
             width: '100vw',
             height: '100vh',
-            bgcolor: 'rgba(255,255,255,0.98)',
+            bgcolor: 'var(--surface)',
+            color: 'var(--text)',
             zIndex: 1300,
             display: 'flex',
             flexDirection: 'column',
@@ -704,26 +706,92 @@ const QuizSession: React.FC = () => {
 
         {/* Final Leaderboard */}
         {sessionState === 'ended' && (
-          <div className="leaderboard-container">
-            <div className="leaderboard-header">
-              <h2 className="leaderboard-title">Final Results</h2>
-              <p style={{ color: 'var(--gray-600)' }}>
-                Your final score: {myScore} points
-              </p>
+          <div className="leaderboard-container" style={{ background: '#1E1532', borderRadius: 20, boxShadow: '0 8px 32px 0 #864DFF44', padding: 32, margin: '2rem auto', maxWidth: 700, fontFamily: 'Inter, Poppins, sans-serif' }}>
+            <div className="leaderboard-header" style={{ marginBottom: 32 }}>
+              <h2 className="leaderboard-title" style={{ background: '#864DFF', color: '#fff', borderRadius: 12, padding: '0.75rem 2rem', fontWeight: 800, fontSize: 32, textAlign: 'center', boxShadow: '0 2px 12px #864DFF33' }}>Leaderboard</h2>
             </div>
-
-            <div>
-              {leaderboard.map((entry, index) => (
-                <div key={index} className="leaderboard-item">
-                  <div className={`leaderboard-rank rank-${index + 1 <= 3 ? index + 1 : 'other'}`}>
-                    {index + 1}
-                  </div>
-                  <div className="leaderboard-name">{entry.name}</div>
-                  <div className="leaderboard-score">{entry.total_score} pts</div>
-                </div>
-              ))}
+            {/* Podium for top 3 */}
+            {leaderboard.length >= 3 && (
+              <Box display="flex" justifyContent="center" alignItems="end" gap={4} mb={6}>
+                {[1, 0, 2].map((podiumIdx, i) => (
+                  <Box key={podiumIdx} display="flex" flexDirection="column" alignItems="center" justifyContent="end">
+                    <Box
+                      sx={{
+                        width: 80,
+                        height: [90, 120, 70][i],
+                        background: ['#B39DFF', '#864DFF', '#5B3FA6'][i],
+                        borderRadius: 4,
+                        boxShadow: '0 4px 16px #864DFF55',
+                        display: 'flex',
+                        alignItems: 'end',
+                        justifyContent: 'center',
+                        mb: 1,
+                        transition: 'all 0.3s',
+                      }}
+                    >
+                      <span style={{ color: '#fff', fontWeight: 700, fontSize: 28 }}>{podiumIdx + 1}</span>
+                    </Box>
+                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 18 }}>{leaderboard[podiumIdx]?.name}</span>
+                    <span style={{ color: '#864DFF', fontWeight: 700, fontSize: 16 }}>{leaderboard[podiumIdx]?.total_score} pts</span>
+                  </Box>
+                ))}
+              </Box>
+            )}
+            {/* DataGrid Table for leaderboard */}
+            <div style={{ width: '100%', background: '#231A3A', borderRadius: 16, boxShadow: '0 2px 12px #864DFF22', margin: '0 auto', overflow: 'hidden' }}>
+              <DataGrid
+                autoHeight
+                rows={leaderboard.map((entry, idx) => ({ id: idx + 1, ...entry, rank: idx + 1 }))}
+                columns={[
+                  { field: 'rank', headerName: 'Rank', width: 80, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <b>{params.value}</b> },
+                  { field: 'name', headerName: 'Username', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <span>{params.value}</span> },
+                  { field: 'total_score', headerName: 'Points', width: 100, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <b style={{ color: '#864DFF' }}>{params.value}</b> },
+                ]}
+                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                pagination={true}
+                hideFooterSelectedRowCount
+                sx={{
+                  background: 'transparent',
+                  color: '#000',
+                  border: 'none',
+                  fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
+                  '& .MuiDataGrid-columnHeaders': {
+                    background: '#6C38FF !important',
+                    color: '#fff !important',
+                    fontWeight: 800,
+                    fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
+                    fontSize: 18,
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                  },
+                  '& .MuiDataGrid-columnHeaderTitle': {
+                    color: '#fff !important',
+                    fontWeight: 800,
+                    fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
+                  },
+                  '& .MuiDataGrid-row': {
+                    background: '#fff !important',
+                    color: '#18122B !important',
+                    fontWeight: 600,
+                    fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
+                    transition: 'background 0.2s',
+                    '&:nth-of-type(even)': { background: '#F5F3FF !important' },
+                    '&:hover': { background: '#E0D7FF !important' },
+                  },
+                  '& .MuiDataGrid-cell': {
+                    border: 'none',
+                    fontSize: 16,
+                    color: '#18122B !important',
+                  },
+                  '& .MuiDataGrid-virtualScroller': {
+                    background: 'transparent',
+                  },
+                  '& .MuiDataGrid-footerContainer': {
+                    display: 'none',
+                  },
+                }}
+              />
             </div>
-
             <div style={{ textAlign: 'center', marginTop: '2rem' }}>
               <div className="flex gap-4 justify-center">
                 <button

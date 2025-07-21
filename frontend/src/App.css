@@ -1,43 +1,19 @@
 /* Color palette */
 :root {
-  --primary-blue: #2563eb;
-  --primary-blue-dark: #1e40af;
-  --accent-red: #e11d48;
-  --accent-red-dark: #9f1239;
-  --background: #f8fafc;
-  --card-bg: #fff;
-  --text-main: #1e293b;
-  --text-light: #64748b;
-  --border: #e5e7eb;
-  --shadow: 0 2px 8px rgba(37,99,235,0.08);
-  --transition: 0.2s cubic-bezier(.4,0,.2,1);
-  --radius: 0.75rem;
-  --input-bg: #f1f5f9;
-  --input-border: #cbd5e1;
-  --input-focus: #2563eb33;
-  --danger: #e11d48;
-  --success: #10b981;
-  --white: #fff;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #181f2a;
-    --card-bg: #232b3b;
-    --text-main: #f1f5f9;
-    --text-light: #94a3b8;
-    --border: #334155;
-    --input-bg: #232b3b;
-    --input-border: #334155;
-    --input-focus: #2563eb55;
-    --shadow: 0 2px 12px rgba(37,99,235,0.18);
-  }
+  --primary: #6C38FF;
+  --primary-dark: #4B1FA6;
+  --background: #18122B;
+  --surface: #221C3A;
+  --card: #fff;
+  --text: #fff;
+  --accent: #F5F3FF;
+  --border: #2D2346;
 }
 
 body {
   background: var(--background);
-  color: var(--text-main);
-  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  color: var(--text);
+  font-family: 'Satoshi', sans-serif;
   margin: 0;
   padding: 0;
   min-height: 100vh;
@@ -45,72 +21,65 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  color: var(--primary-blue-dark);
+  color: var(--accent);
   font-weight: 700;
   margin-top: 0;
 }
 
 .card, .card-header, .stat-card, .leaderboard-item, .question-card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px rgba(76,56,255,0.08);
   border: 1px solid var(--border);
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  color: var(--text);
   transition: background var(--transition), box-shadow var(--transition);
 }
 
 .btn, .submit-btn {
-  background: var(--primary-blue);
-  color: var(--white);
+  background: var(--primary);
+  color: var(--text);
   border: none;
-  border-radius: var(--radius);
+  border-radius: 0.75rem;
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(37,99,235,0.10);
+  box-shadow: 0 1px 4px rgba(76,56,255,0.10);
   transition: background var(--transition), box-shadow var(--transition), color var(--transition);
 }
 .btn:hover, .submit-btn:hover {
-  background: var(--primary-blue-dark);
+  background: var(--primary-dark);
 }
 .btn-outline {
   background: transparent;
-  color: var(--accent-red);
-  border: 2px solid var(--accent-red);
+  color: var(--primary);
+  border: 2px solid var(--primary);
 }
 .btn-outline:hover {
-  background: var(--accent-red);
-  color: var(--white);
+  background: var(--primary);
+  color: var(--accent);
 }
 
 input, select, textarea {
-  background: var(--input-bg);
-  border: 1.5px solid var(--input-border);
-  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 0.75rem;
   padding: 0.75rem 1rem;
   font-size: 1rem;
-  color: var(--text-main);
+  color: var(--text);
   transition: border-color var(--transition), box-shadow var(--transition);
   outline: none;
 }
 input:focus, select:focus, textarea:focus {
-  border-color: var(--primary-blue);
-  box-shadow: 0 0 0 2px var(--input-focus);
-}
-
-.alert-error {
-  background: var(--accent-red);
-  color: var(--white);
-  border-radius: var(--radius);
-  padding: 1rem 1.5rem;
-  margin-bottom: 1rem;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px #6C38FF33;
 }
 
 .alert-success {
-  background: var(--success);
-  color: var(--white);
+  background: var(--accent);
+  color: var(--primary-dark);
   border-radius: var(--radius);
   padding: 1rem 1.5rem;
   margin-bottom: 1rem;
@@ -164,7 +133,7 @@ input:focus, select:focus, textarea:focus {
 .quiz-title {
   font-size: 2.25rem;
   font-weight: 700;
-  color: var(--primary-blue-dark);
+  color: var(--accent);
   margin-bottom: 0.25rem;
 }
 
@@ -175,12 +144,13 @@ input:focus, select:focus, textarea:focus {
 }
 
 .question-card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px rgba(76,56,255,0.08);
   border: 1px solid var(--border);
   padding: 2rem 1.5rem 1.5rem 1.5rem;
   margin-bottom: 2rem;
+  color: var(--text);
   transition: box-shadow var(--transition), background var(--transition);
 }
 
@@ -1238,4 +1208,16 @@ input:focus, select:focus, textarea:focus {
   .quiz-title {
     font-size: 1.5rem;
   }
+} 
+
+.dashboard-action-btn:hover {
+  background: #4B1FA6 !important;
+  color: #fff !important;
+  border-color: #fff !important;
+} 
+
+/* Register page card/box styling */
+.MuiCard-root {
+  background: #18122B !important;
+  color: #fff !important;
 } 

@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
-import Alert from '@mui/material/Alert';
-import Divider from '@mui/material/Divider';
 
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -72,118 +64,97 @@ const Register: React.FC = () => {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', py: 4 }}>
-      <Card sx={{ maxWidth: 400, width: '100%', boxShadow: 6, borderRadius: 3 }}>
-        <CardContent>
-          <Typography variant="h4" fontWeight={700} color="primary" align="center" gutterBottom>
-            Create Account
-          </Typography>
-          <Typography variant="body2" color="text.secondary" align="center" mb={2}>
-            Join us to start creating amazing quizzes
-          </Typography>
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#18122B' }}>
+      <div style={{ maxWidth: 400, width: '100%', borderRadius: 12, background: '#4B1FA6', color: '#fff', boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }}>
+        {/* Top section: Create Account and subtitle */}
+        <div style={{ background: '#6C38FF', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12, padding: 24, textAlign: 'center' }}>
+          <h2 style={{ color: '#fff', margin: 0 }}>Create Account</h2>
+          <p style={{ color: '#fff', margin: 0 }}>Join us to start creating amazing quizzes</p>
+        </div>
+        <div style={{ padding: 24, paddingBottom: 0 }}>
+          {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
           {validationErrors.length > 0 && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              <ul style={{ margin: 0, paddingLeft: '1rem' }}>
-                {validationErrors.map((error, index) => (
-                  <li key={index}>{error}</li>
-                ))}
-              </ul>
-            </Alert>
+            <ul style={{ color: 'orange', marginBottom: 8 }}>
+              {validationErrors.map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+            </ul>
           )}
-          <Box component="form" onSubmit={handleSubmit} autoComplete="off" sx={{ mt: 2 }}>
-            <TextField
-              label="Username"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              fullWidth
-              margin="normal"
-              required
-              disabled={isSubmitting}
-              autoFocus
-            />
-            <TextField
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              fullWidth
-              margin="normal"
-              required
-              disabled={isSubmitting}
-            />
-            <TextField
-              label="Password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              fullWidth
-              margin="normal"
-              required
-              disabled={isSubmitting}
-            />
-            <TextField
-              label="Confirm Password"
-              name="confirmPassword"
-              type="password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              fullWidth
-              margin="normal"
-              required
-              disabled={isSubmitting}
-            />
-            <Button
+          <form onSubmit={handleSubmit} autoComplete="off">
+            <div>
+              <label>Username</label><br />
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label>Email</label><br />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            <div>
+              <label>Password</label><br />
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            <div>
+              <label>Confirm Password</label><br />
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            <button
               type="submit"
-              variant="contained"
-              color="primary"
-              fullWidth
-              size="large"
-              sx={{ mt: 2, fontWeight: 700, borderRadius: 2 }}
               disabled={isSubmitting || !formData.username || !formData.email || !formData.password || !formData.confirmPassword}
+              style={{ width: '100%', marginTop: 12, marginBottom: 8, background: '#6C38FF', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 0', fontWeight: 700, fontSize: 16, cursor: 'pointer', transition: 'background 0.2s' }}
+              onMouseOver={e => (e.currentTarget.style.background = '#4B1FA6')}
+              onMouseOut={e => (e.currentTarget.style.background = '#6C38FF')}
             >
               {isSubmitting ? 'Creating Account...' : 'Create Account'}
-            </Button>
-          </Box>
-          <Divider sx={{ my: 3 }} />
-          <Typography variant="body2" color="text.secondary" align="center" mb={1}>
-            Already have an account?
-          </Typography>
-          <Button
-            component={Link}
-            to="/login"
-            variant="outlined"
-            color="primary"
-            fullWidth
-            sx={{ mb: 2, fontWeight: 700, borderRadius: 2 }}
-          >
-            Sign In
-          </Button>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ textAlign: 'center', mt: 2 }}>
-            <Typography variant="subtitle1" color="primary" fontWeight={600} gutterBottom>
-              Want to join a quiz?
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={1}>
-              If you have an access code, you can join without creating an account.
-            </Typography>
-            <Button
-              component={Link}
-              to="/join"
-              variant="contained"
-              color="secondary"
-              fullWidth
-              sx={{ fontWeight: 700, borderRadius: 2 }}
-            >
-              Join Quiz
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
-    </Box>
+            </button>
+          </form>
+          <hr style={{ borderColor: '#fff', opacity: 0.2, margin: '24px 0' }} />
+          <p style={{ color: '#fff', textAlign: 'center' }}>Already have an account?</p>
+          <Link to="/login" style={{ background: '#6C38FF', color: '#fff', textAlign: 'center', display: 'block', marginBottom: 16, borderRadius: 8, padding: '12px 0', fontWeight: 700, fontSize: 16, textDecoration: 'none', transition: 'background 0.2s' }}
+            onMouseOver={e => (e.currentTarget.style.background = '#4B1FA6')}
+            onMouseOut={e => (e.currentTarget.style.background = '#6C38FF')}
+          >Sign In</Link>
+          <hr style={{ borderColor: '#fff', opacity: 0.2, margin: '16px 0' }} />
+        </div>
+        {/* Bottom section: Want to join a quiz */}
+        <div style={{ background: '#6C38FF', color: '#fff', borderBottomLeftRadius: 12, borderBottomRightRadius: 12, padding: 16, textAlign: 'center' }}>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>Want to join a quiz?</p>
+          <p style={{ marginBottom: 8 }}>If you have an access code, you can join without creating an account.</p>
+          <Link to="/join" style={{ background: '#4B1FA6', color: '#fff', padding: '10px 0', borderRadius: 8, display: 'block', textDecoration: 'none', fontWeight: 700, margin: '0 auto', maxWidth: 200, transition: 'background 0.2s' }}
+            onMouseOver={e => (e.currentTarget.style.background = '#18122B')}
+            onMouseOut={e => (e.currentTarget.style.background = '#4B1FA6')}
+          >Join Quiz</Link>
+        </div>
+      </div>
+    </div>
   );
 };
 

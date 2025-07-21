@@ -10,6 +10,7 @@
     "@mui/material": "^7.2.0",
     "@mui/system": "^7.2.0",
     "@mui/types": "^7.4.4",
+    "@mui/x-data-grid": "^8.8.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.42",
     "@types/react-dom": "^18.2.17",

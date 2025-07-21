@@ -33,6 +33,7 @@ const QuizCreator: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [showSavePopup, setShowSavePopup] = useState(false);
 
   console.log('QuizCreator component rendered', { 
     quizId, 
@@ -50,6 +51,19 @@ const QuizCreator: React.FC = () => {
     negative_points: 0,
     order_index: 0
   });
+
+  const [matchPairs, setMatchPairs] = useState<{ prompt: string; match_text: string }[]>([]);
+
+  // Update matchPairs when editing a match question
+  useEffect(() => {
+    if (showQuestionForm && questionForm.question_type === 'match') {
+      if (editingQuestion && (editingQuestion as any).match_pairs) {
+        setMatchPairs((editingQuestion as any).match_pairs);
+      } else {
+        setMatchPairs([]);
+      }
+    }
+  }, [showQuestionForm, questionForm.question_type, editingQuestion]);
 
   const fetchQuiz = useCallback(async () => {
     console.log('fetchQuiz called for quizId:', quizId);
@@ -111,6 +125,8 @@ const QuizCreator: React.FC = () => {
           description: quiz.description
         });
         console.log('Quiz updated successfully');
+        setShowSavePopup(true);
+        setTimeout(() => setShowSavePopup(false), 2000);
       }
     } catch (error: any) {
       console.error('Quiz submit error:', error);
@@ -139,6 +155,9 @@ const QuizCreator: React.FC = () => {
       formData.append('timeLimit', questionForm.time_limit.toString());
       formData.append('points', questionForm.points.toString());
       formData.append('negativePoints', questionForm.negative_points.toString());
+      if (questionForm.question_type === 'match') {
+        formData.append('matchPairs', JSON.stringify(matchPairs));
+      }
 
       console.log('Submitting question with formData:', {
         questionText: questionForm.question_text,
@@ -171,6 +190,8 @@ const QuizCreator: React.FC = () => {
       console.log('Question saved successfully, fetching updated quiz');
       fetchQuiz();
       resetQuestionForm();
+      setShowSavePopup(true);
+      setTimeout(() => setShowSavePopup(false), 2000);
     } catch (error: any) {
       console.error('Question submit error:', error);
       console.error('Error response:', error.response?.data);
@@ -193,6 +214,7 @@ const QuizCreator: React.FC = () => {
     });
     setEditingQuestion(null);
     setShowQuestionForm(false);
+    setMatchPairs([]); // Reset matchPairs
   };
 
   const editQuestion = (question: Question) => {
@@ -201,6 +223,11 @@ const QuizCreator: React.FC = () => {
       options: question.options || [''],
       correct_answers: question.correct_answers
     });
+    if (question.question_type === 'match' && (question as any).match_pairs) {
+      setMatchPairs((question as any).match_pairs);
+    } else {
+      setMatchPairs([]);
+    }
     setEditingQuestion(question);
     setShowQuestionForm(true);
   };
@@ -256,19 +283,16 @@ const QuizCreator: React.FC = () => {
         return Array.isArray(questionForm.correct_answers) && 
                questionForm.correct_answers.length === 1 && 
                questionForm.correct_answers[0] !== '';
-      
       case 'multiple_choice_multiple':
         return Array.isArray(questionForm.correct_answers) && 
                questionForm.correct_answers.length > 0;
-      
       case 'true_false':
         return typeof questionForm.correct_answers === 'boolean';
-      
       case 'typed_answer':
-      case 'match':
         return typeof questionForm.correct_answers === 'string' && 
                questionForm.correct_answers.trim() !== '';
-      
+      case 'match':
+        return Array.isArray(matchPairs) && matchPairs.length > 0 && matchPairs.every(pair => pair.prompt.trim() && pair.match_text.trim());
       default:
         return false;
     }
@@ -300,7 +324,7 @@ const QuizCreator: React.FC = () => {
   return (
     <div className="quiz-creator-container">
       <div className="quiz-header">
-        <div className="header-accent-bar" />
+        <div className="header-accent-bar" style={{ background: 'var(--accent)', height: 8, width: 48, borderRadius: 4, margin: '0 auto 16px auto' }} />
         <h1 className="quiz-title">Quiz Creator</h1>
         <p className="quiz-subtitle">Build and customize your quiz</p>
       </div>
@@ -679,18 +703,48 @@ const QuizCreator: React.FC = () => {
                   {/* Correct answer for match questions */}
                   {questionForm.question_type === 'match' && (
                     <div className="form-group">
-                      <label className="form-label">Correct Answer</label>
-                      <input
-                        type="text"
-                        value={typeof questionForm.correct_answers === 'string' ? questionForm.correct_answers : ''}
-                        onChange={(e) => updateQuestionForm('correct_answers', e.target.value)}
-                        className="form-input"
-                        placeholder="Enter the correct matching answer"
-                        required
-                        disabled={saving}
-                      />
-                      <small style={{ color: 'var(--gray-600)', fontSize: '0.875rem' }}>
-                        Enter the answer that participants should match
+                      <label className="form-label">Match Pairs</label>
+                      {matchPairs.map((pair, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: 8 }}>
+                          <input
+                            type="text"
+                            value={pair.prompt}
+                            onChange={e => {
+                              const newPairs = [...matchPairs];
+                              newPairs[idx].prompt = e.target.value;
+                              setMatchPairs(newPairs);
+                            }}
+                            className="form-input"
+                            placeholder={`Prompt ${idx + 1}`}
+                            required
+                          />
+                          <span style={{ alignSelf: 'center' }}>→</span>
+                          <input
+                            type="text"
+                            value={pair.match_text}
+                            onChange={e => {
+                              const newPairs = [...matchPairs];
+                              newPairs[idx].match_text = e.target.value;
+                              setMatchPairs(newPairs);
+                            }}
+                            className="form-input"
+                            placeholder={`Match ${idx + 1}`}
+                            required
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setMatchPairs(matchPairs.filter((_, i) => i !== idx))}
+                          >Remove</button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setMatchPairs([...matchPairs, { prompt: '', match_text: '' }])}
+                      >Add Pair</button>
+                      <small style={{ color: 'var(--gray-600)', fontSize: '0.875rem', display: 'block', marginTop: 4 }}>
+                        Enter pairs to be matched. Left = prompt, Right = correct match.
                       </small>
                     </div>
                   )}
@@ -877,6 +931,24 @@ const QuizCreator: React.FC = () => {
           </div>
         )}
       </div>
+      {showSavePopup && (
+        <div style={{
+          position: 'fixed',
+          top: 32,
+          right: 32,
+          background: '#4B1FA6',
+          color: '#fff',
+          padding: '16px 32px',
+          borderRadius: 12,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+          zIndex: 9999,
+          fontWeight: 600,
+          fontSize: '1.1rem',
+          transition: 'opacity 0.3s',
+        }}>
+          ✓ Changes saved!
+        </div>
+      )}
     </div>
   );
 };

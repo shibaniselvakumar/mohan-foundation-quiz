@@ -19,27 +19,27 @@ import Box from '@mui/material/Box';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#2563eb', // blue
-      dark: '#1e40af',
-      contrastText: '#fff',
+      main: '#1b2a6f', // deep blue
+      dark: '#4d5b89',
+      contrastText: '#29ffb8', // turquoise
     },
     secondary: {
-      main: '#e11d48', // red
-      dark: '#9f1239',
-      contrastText: '#fff',
+      main: '#6bff6b', // green
+      dark: '#29ffb8',
+      contrastText: '#1b2a6f',
     },
     background: {
-      default: '#f8fafc',
-      paper: '#fff',
+      default: '#f7f8fa',
+      paper: '#ffffff',
     },
     text: {
-      primary: '#1e293b',
-      secondary: '#64748b',
+      primary: '#1b2a6f',
+      secondary: '#4d5b89',
     },
   },
   typography: {
     fontFamily: [
-      'Inter',
+      'Satoshi',
       'Segoe UI',
       'Arial',
       'sans-serif',

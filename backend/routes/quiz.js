@@ -262,8 +262,8 @@ router.put('/:quizId', authenticateToken, async (req, res) => {
           
           // Clear any old participants from previous sessions of this quiz
           await pool.query(
-            'DELETE FROM participants WHERE session_id IN (SELECT id FROM quiz_sessions WHERE quiz_id = $1 AND id != $2)',
-            [quizId, sessionId]
+            'DELETE FROM participants WHERE session_id = $1',
+            [sessionId]
           );
 
           // Also clear participants from the current session to ensure clean slate
@@ -290,7 +290,7 @@ router.put('/:quizId', authenticateToken, async (req, res) => {
   }
 });
 
-// Get quiz by ID with questions
+// Get quiz by ID with questions (include match pairs)
 router.get('/:quizId', authenticateToken, async (req, res) => {
   try {
     const { quizId } = req.params;
@@ -311,10 +311,22 @@ router.get('/:quizId', authenticateToken, async (req, res) => {
       'SELECT * FROM questions WHERE quiz_id = $1 ORDER BY order_index',
       [quizId]
     );
+    const questions = questionsResult.rows;
+
+    // For match questions, fetch match pairs
+    for (const q of questions) {
+      if (q.question_type === 'match') {
+        const pairsResult = await pool.query(
+          'SELECT id, prompt, match_text FROM match_pairs WHERE question_id = $1',
+          [q.id]
+        );
+        q.match_pairs = pairsResult.rows;
+      }
+    }
 
     res.json({
       quiz: quizResult.rows[0],
-      questions: questionsResult.rows
+      questions
     });
   } catch (error) {
     console.error('Get quiz error:', error);
@@ -338,7 +350,7 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
     // Parse JSON strings from FormData
     let options = null;
     let correctAnswers = null;
-    
+    let matchPairs = null;
     try {
       if (req.body.options) {
         options = JSON.parse(req.body.options);
@@ -346,9 +358,12 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
       if (req.body.correctAnswers) {
         correctAnswers = JSON.parse(req.body.correctAnswers);
       }
+      if (req.body.matchPairs) {
+        matchPairs = JSON.parse(req.body.matchPairs);
+      }
     } catch (parseError) {
       console.error('JSON parsing error:', parseError);
-      return res.status(400).json({ error: 'Invalid JSON data in options or correctAnswers' });
+      return res.status(400).json({ error: 'Invalid JSON data in options, correctAnswers, or matchPairs' });
     }
 
     console.log('Question creation request received:', {
@@ -408,10 +423,22 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
       [
         quizId, questionText, questionType,
         options ? JSON.stringify(options) : null,
-        correctAnswers ? JSON.stringify(correctAnswers) : null,
+        (typeof correctAnswers === 'string' ? JSON.stringify(correctAnswers) : '""'),
         timeLimit || 30, points || 1, negativePoints || 0, imageUrl, orderIndex
       ]
     );
+
+    const questionId = result.rows[0].id;
+
+    // Insert match pairs if match question
+    if (questionType === 'match' && Array.isArray(matchPairs)) {
+      for (const pair of matchPairs) {
+        await pool.query(
+          'INSERT INTO match_pairs (question_id, prompt, match_text) VALUES ($1, $2, $3)',
+          [questionId, pair.prompt, pair.match_text]
+        );
+      }
+    }
 
     console.log('Question inserted successfully:', result.rows[0]);
 
@@ -446,7 +473,7 @@ router.put('/:quizId/questions/:questionId', authenticateToken, upload.single('i
     // Parse JSON strings from FormData
     let options = null;
     let correctAnswers = null;
-    
+    let matchPairs = null;
     try {
       if (req.body.options) {
         options = JSON.parse(req.body.options);
@@ -454,9 +481,12 @@ router.put('/:quizId/questions/:questionId', authenticateToken, upload.single('i
       if (req.body.correctAnswers) {
         correctAnswers = JSON.parse(req.body.correctAnswers);
       }
+      if (req.body.matchPairs) {
+        matchPairs = JSON.parse(req.body.matchPairs);
+      }
     } catch (parseError) {
       console.error('JSON parsing error:', parseError);
-      return res.status(400).json({ error: 'Invalid JSON data in options or correctAnswers' });
+      return res.status(400).json({ error: 'Invalid JSON data in options, correctAnswers, or matchPairs' });
     }
 
     // Verify quiz ownership
@@ -493,7 +523,7 @@ router.put('/:quizId/questions/:questionId', authenticateToken, upload.single('i
     }
     if (correctAnswers !== undefined) {
       updateFields.push(`correct_answers = $${paramCount++}`);
-      values.push(correctAnswers ? JSON.stringify(correctAnswers) : null);
+      values.push(typeof correctAnswers === 'string' ? JSON.stringify(correctAnswers) : '""');
     }
     if (timeLimit !== undefined) {
       updateFields.push(`time_limit = $${paramCount++}`);
@@ -524,6 +554,19 @@ router.put('/:quizId/questions/:questionId', authenticateToken, upload.single('i
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Update match pairs if match question
+    if (questionType === 'match') {
+      await pool.query('DELETE FROM match_pairs WHERE question_id = $1', [questionId]);
+      if (Array.isArray(matchPairs)) {
+        for (const pair of matchPairs) {
+          await pool.query(
+            'INSERT INTO match_pairs (question_id, prompt, match_text) VALUES ($1, $2, $3)',
+            [questionId, pair.prompt, pair.match_text]
+          );
+        }
+      }
     }
 
     res.json({
@@ -624,17 +667,8 @@ router.post('/:quizId/session', authenticateToken, async (req, res) => {
       [quizId, sessionCode, 'waiting']
     );
 
-    // Clear any old participants from previous sessions of this quiz
-    await pool.query(
-      'DELETE FROM participants WHERE session_id IN (SELECT id FROM quiz_sessions WHERE quiz_id = $1 AND id != $2)',
-      [quizId, sessionResult.rows[0].id]
-    );
-
-    // Also clear participants from the current session to ensure clean slate
-    await pool.query(
-      'DELETE FROM participants WHERE session_id = $1',
-      [sessionResult.rows[0].id]
-    );
+    // Do NOT delete participants from previous sessions or the new session here.
+    // Each new session starts with no participants by default.
 
     res.status(201).json({
       message: 'Session created successfully',

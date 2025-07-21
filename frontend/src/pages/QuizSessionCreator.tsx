@@ -317,14 +317,14 @@ const QuizSessionCreator: React.FC = () => {
   }
 
   return (
-    <Box sx={{ width: '100vw', minHeight: '100vh', bgcolor: '#e3f0ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', p: 0, m: 0, overflowX: 'hidden' }}>
+    <Box sx={{ width: '100vw', minHeight: '100vh', bgcolor: 'var(--background)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', p: 0, m: 0, overflowX: 'hidden' }}>
       <Paper elevation={8} sx={{
         width: '100%',
         maxWidth: 1200,
         mx: 'auto',
         my: 4,
         borderRadius: 8,
-        boxShadow: '0 8px 32px 0 rgba(37,99,235,0.18), 0 1.5px 8px 0 #e11d48cc',
+        boxShadow: '0 8px 32px 0 #6C38FF22, 0 1.5px 8px 0 #F5F3FFcc',
         p: { xs: 2, md: 4 },
         minHeight: '80vh',
         display: 'flex',
@@ -332,8 +332,8 @@ const QuizSessionCreator: React.FC = () => {
         gap: 4,
         position: 'relative',
         overflow: 'hidden',
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.85) 60%, #e0e7ff 100%)',
-        border: '2.5px solid #e0e7ff',
+        background: 'var(--surface)',
+        border: '2.5px solid var(--border)',
         backdropFilter: 'blur(12px)',
       }}>
         {/* Decorative accent bar */}
@@ -341,17 +341,17 @@ const QuizSessionCreator: React.FC = () => {
           position: 'absolute',
           top: 0,
           left: 0,
-          width: '100%',
-          height: 10,
-          background: 'linear-gradient(90deg, #2563eb 60%, #e11d48 100%)',
+          width: 48,
+          height: 8,
+          background: 'var(--accent)',
           borderTopLeftRadius: 8,
           borderTopRightRadius: 8,
           zIndex: 2,
-          boxShadow: '0 2px 8px 0 #2563eb33',
+          boxShadow: '0 2px 8px 0 #6C38FF33',
         }} />
         <div className="quiz-header" style={{ width: '100%', padding: '2.5rem 0 1.5rem 0', zIndex: 3 }}>
-          <h1 className="quiz-title" style={{ fontWeight: 800, letterSpacing: 1, color: '#2563eb', textShadow: '0 2px 8px #e0e7ff' }}>Session Control</h1>
-          <p className="quiz-subtitle" style={{ color: '#e11d48', fontWeight: 600, fontSize: '1.15rem' }}>Manage your live quiz session</p>
+          <h1 className="quiz-title" style={{ fontWeight: 800, letterSpacing: 1, color: 'var(--text-primary)', textShadow: '0 2px 8px #e0e7ff' }}>Session Control</h1>
+          <p className="quiz-subtitle" style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '1.15rem' }}>Manage your live quiz session</p>
         </div>
 
         {/* Session Info */}
@@ -514,7 +514,7 @@ const QuizSessionCreator: React.FC = () => {
               overflow: 'auto',
             }}
           >
-            <Box sx={{ background: '#fff', borderRadius: 4, p: 4, minWidth: 320, maxWidth: 900, width: '100%' }}>
+            <Box sx={{ background: 'var(--surface)', borderRadius: 4, p: 4, minWidth: 320, maxWidth: 900, width: '100%' }}>
               <h3 style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>Question Results</h3>
               <Box className="results-summary" sx={{ display: 'flex', justifyContent: 'center', gap: 4, width: '100%', maxWidth: 900, mb: 4 }}>
                 <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
@@ -629,7 +629,7 @@ const QuizSessionCreator: React.FC = () => {
             overflow: 'auto',
           }}
         >
-          <Box sx={{ background: '#fff', borderRadius: 4, p: 4, minWidth: 320, maxWidth: 900, width: '100%' }}>
+          <Box sx={{ background: 'var(--surface)', borderRadius: 4, p: 4, minWidth: 320, maxWidth: 900, width: '100%' }}>
             <h3 style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>Live Question Stats</h3>
             <Box className="results-summary" sx={{ display: 'flex', justifyContent: 'center', gap: 4, width: '100%', maxWidth: 900, mb: 4 }}>
               <Box className="stat-card" sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>

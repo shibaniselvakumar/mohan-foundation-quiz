@@ -108,7 +108,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="container dashboard-container">
       <div className="dashboard-header">
-        <div className="header-accent-bar" />
+        <div className="header-accent-bar" style={{ background: 'var(--accent)', height: 8, width: 8, borderRadius: 4, marginRight: 24 }} />
         <div>
           <h1 className="dashboard-title">My Quizzes</h1>
           <p className="dashboard-subtitle">Create and manage your interactive quizzes</p>
@@ -155,12 +155,12 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quizzes.map((quiz) => (
             <div key={quiz.id} className="card" style={{ height: 'fit-content' }}>
-              <div className="card-header">
+              <div className="card-header" style={{ background: '#6C38FF', borderRadius: '0.75rem 0.75rem 0 0', padding: '1.25rem 1.5rem', margin: '-1.5rem -1.5rem 1rem -1.5rem' }}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 style={{
                     fontSize: '1.25rem',
                     fontWeight: '600',
-                    color: 'var(--gray-800)',
+                    color: '#fff',
                     margin: 0
                   }}>
                     {quiz.title}
@@ -170,15 +170,15 @@ const Dashboard: React.FC = () => {
                     borderRadius: '1rem',
                     fontSize: '0.875rem',
                     fontWeight: '500',
-                    backgroundColor: getStatusColor(quiz.status) + '20',
-                    color: getStatusColor(quiz.status)
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                    color: '#fff'
                   }}>
                     {getStatusText(quiz.status)}
                   </span>
                 </div>
                 {quiz.description && (
                   <p style={{
-                    color: 'var(--gray-600)',
+                    color: '#fff',
                     fontSize: '0.875rem',
                     margin: 0
                   }}>
@@ -223,8 +223,8 @@ const Dashboard: React.FC = () => {
               <div className="flex gap-2">
                 <Link
                   to={`/quiz/${quiz.id}`}
-                  className="btn btn-outline"
-                  style={{ flex: 1 }}
+                  className="btn dashboard-action-btn"
+                  style={{ flex: 1, background: '#6C38FF', color: '#fff', border: '2px solid #fff', transition: 'background 0.2s, color 0.2s', fontFamily: 'Satoshi, Inter, Poppins, sans-serif' }}
                 >
                   Edit Quiz
                 </Link>
@@ -246,8 +246,8 @@ const Dashboard: React.FC = () => {
                 )}
                 {quiz.status === 'active' && (
                   <button
-                    className="btn btn-info"
-                    style={{ flex: 1 }}
+                    className="btn dashboard-action-btn"
+                    style={{ flex: 1, background: '#6C38FF', color: '#fff', border: '2px solid #fff', transition: 'background 0.2s, color 0.2s', fontFamily: 'Satoshi, Inter, Poppins, sans-serif' }}
                     onClick={() => handleViewAnalytics(quiz)}
                   >
                     View Analytics
@@ -255,8 +255,8 @@ const Dashboard: React.FC = () => {
                 )}
                 {quiz.status === 'active' && (
                   <button
-                    className="btn btn-primary"
-                    style={{ flex: 1 }}
+                    className="btn dashboard-action-btn"
+                    style={{ flex: 1, background: '#6C38FF', color: '#fff', border: '2px solid #fff', transition: 'background 0.2s, color 0.2s', fontFamily: 'Satoshi, Inter, Poppins, sans-serif' }}
                     onClick={async () => {
                       try {
                         // Always create a new session
@@ -317,7 +317,7 @@ const Dashboard: React.FC = () => {
         aria-labelledby="analytics-modal-title"
         aria-describedby="analytics-modal-description"
       >
-        <div className="modal-content" style={{ background: '#fff', padding: 32, borderRadius: 12, maxWidth: 900, margin: '4rem auto', outline: 'none', maxHeight: '80vh', overflowY: 'auto' }}>
+        <div className="modal-content" style={{ background: '#18122B', color: '#fff', fontFamily: 'Satoshi, Inter, Poppins, sans-serif', padding: 32, borderRadius: 12, maxWidth: 900, margin: '4rem auto', outline: 'none', maxHeight: '80vh', overflowY: 'auto' }}>
           <h2 id="analytics-modal-title" style={{ marginBottom: 24 }}>
             {selectedQuiz ? `Analytics for: ${selectedQuiz.title}` : 'Analytics'}
           </h2>
@@ -361,7 +361,8 @@ const Dashboard: React.FC = () => {
                             <td>{session.ended_at ? new Date(session.ended_at).toLocaleString() : '-'}</td>
                             <td>
                               <button
-                                className="btn btn-primary btn-sm"
+                                className="btn btn-sm dashboard-action-btn"
+                                style={{ background: '#6C38FF', color: '#fff', border: '2px solid #fff', transition: 'background 0.2s, color 0.2s', fontFamily: 'Satoshi, Inter, Poppins, sans-serif' }}
                                 onClick={() => setSelectedSessionId(session.id)}
                               >
                                 View Details
