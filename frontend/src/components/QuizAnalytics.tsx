@@ -477,6 +477,57 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                                   Correct Answer{Array.isArray(q.correct_answers) && q.correct_answers.length > 1 ? 's' : ''}: {Array.isArray(q.correct_answers) ? q.correct_answers.join(', ') : q.correct_answers}
                                 </div>
                               )}
+                              {/* Match: Bar chart for pair correctness and donut for all pairs correct */}
+                              {q.question_type === 'match' && q.breakdown && (
+                                <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
+                                  <div style={{ minWidth: 320, maxWidth: 400 }}>
+                                    <h4 style={{ marginBottom: 8 }}>Correct Matches per Pair</h4>
+                                    <Bar
+                                      data={{
+                                        labels: Object.keys(q.breakdown.pair_correct_counts || {}),
+                                        datasets: [
+                                          {
+                                            label: 'Users Matched Correctly',
+                                            data: Object.values(q.breakdown.pair_correct_counts || {}),
+                                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                                            borderColor: 'rgba(54, 162, 235, 1)',
+                                            borderWidth: 1,
+                                          },
+                                        ],
+                                      }}
+                                      options={{
+                                        responsive: true,
+                                        plugins: {
+                                          legend: { display: false },
+                                          title: { display: false },
+                                        },
+                                        scales: { y: { beginAtZero: true } },
+                                      }}
+                                    />
+                                  </div>
+                                  <div style={{ maxWidth: 300 }}>
+                                    <h4 style={{ marginBottom: 8 }}>All Pairs Matched</h4>
+                                    <Doughnut
+                                      data={{
+                                        labels: ['All Correct', 'Not All Correct'],
+                                        datasets: [
+                                          {
+                                            data: [q.breakdown.all_pairs_correct_count, q.total_responses - q.breakdown.all_pairs_correct_count],
+                                            backgroundColor: ['#10b981', '#ef4444'],
+                                          },
+                                        ],
+                                      }}
+                                      options={{
+                                        responsive: true,
+                                        plugins: {
+                                          legend: { position: 'top' as const },
+                                          title: { display: false },
+                                        },
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>

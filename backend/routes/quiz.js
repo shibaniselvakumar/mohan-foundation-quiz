@@ -868,6 +868,43 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
           }
         });
         q.breakdown = { answer_counts: answerCounts };
+      } else if (q.question_type === 'match') {
+        // Per-pair and per-question analytics for match questions
+        // Fetch match pairs for this question
+        const matchPairsResult = await pool.query(
+          'SELECT prompt, match_text FROM match_pairs WHERE question_id = $1',
+          [q.id]
+        );
+        const matchPairs = matchPairsResult.rows;
+        // Initialize per-pair correct counts
+        let pairCorrectCounts = {};
+        matchPairs.forEach(pair => {
+          pairCorrectCounts[pair.prompt] = 0;
+        });
+        let allPairsCorrectCount = 0;
+        responses.forEach(r => {
+          let ans = r.answer;
+          if (typeof ans === 'string') {
+            try { ans = JSON.parse(ans); } catch {}
+          }
+          // ans should be array of {prompt, match_text}
+          if (Array.isArray(ans)) {
+            let allCorrect = true;
+            matchPairs.forEach(pair => {
+              const userPair = ans.find(a => a.prompt === pair.prompt);
+              if (userPair && userPair.match_text === pair.match_text) {
+                pairCorrectCounts[pair.prompt]++;
+              } else {
+                allCorrect = false;
+              }
+            });
+            if (allCorrect) allPairsCorrectCount++;
+          }
+        });
+        q.breakdown = {
+          pair_correct_counts: pairCorrectCounts,
+          all_pairs_correct_count: allPairsCorrectCount
+        };
       } else {
         q.breakdown = {};
       }
