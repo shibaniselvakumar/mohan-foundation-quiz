@@ -14,6 +14,7 @@ import {
 import QuizTopbar from '../components/QuizTopbar';
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
+import { useMemo } from 'react';
 
 ChartJS.register(
   CategoryScale,
@@ -54,6 +55,15 @@ interface LeaderboardEntry {
   joined_at: string;
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 const QuizSession: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -72,6 +82,11 @@ const QuizSession: React.FC = () => {
   const [participantInfo, setParticipantInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultsCountdown, setResultsCountdown] = useState(5);
+
+  // Add state for match drag-and-drop
+  const [matchPairs, setMatchPairs] = useState<{ prompt: string; match_text: string }[]>([]);
+  const [rightOptions, setRightOptions] = useState<string[]>([]);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
   const myAnswerRef = useRef<any>(myAnswer);
   useEffect(() => {
@@ -246,7 +261,7 @@ const QuizSession: React.FC = () => {
     };
   }, [socket, timeLeft, currentQuestion]);
 
-  // Emit save-draft-answer on every answer change
+  // When a match question is shown, initialize pairs and right options
   useEffect(() => {
     if (!socket || !participantInfo || !currentQuestion) return;
     socket.emit('save-draft-answer', {
@@ -593,18 +608,95 @@ const QuizSession: React.FC = () => {
               </div>
             )}
 
-            {currentQuestion.type === 'match' && (
-              <div>
-                <input
-                  type="text"
-                  value={Array.isArray(myAnswer) ? myAnswer.join(', ') : ''}
-                  onChange={handleMatchAnswer}
-                  className="answer-input"
-                  placeholder="Enter matching items separated by commas..."
-                  disabled={answerSubmitted}
-                />
-              </div>
+            {currentQuestion.type === 'match' && (currentQuestion as any).match_pairs && (
+  <div style={{ display: 'flex', gap: 48, justifyContent: 'center', alignItems: 'flex-start', margin: '2rem 0' }}>
+    {/* LHS: Prompts as drop targets */}
+    <div>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>Prompt</div>
+      {matchPairs.map((pair, idx) => (
+        <div key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ minWidth: 120, fontWeight: 500 }}>{pair.prompt}</div>
+          <div
+            style={{
+              minWidth: 120,
+              minHeight: 36,
+              background: pair.match_text ? '#6C38FF' : '#F5F3FF',
+              border: '2px dashed #6C38FF',
+              borderRadius: 8,
+              marginLeft: 16,
+              padding: '6px 12px',
+              color: pair.match_text ? '#fff' : '#4B1FA6',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: answerSubmitted ? 'not-allowed' : 'pointer',
+              opacity: answerSubmitted ? 0.6 : 1,
+              transition: 'background 0.2s',
+            }}
+            onDragOver={e => { e.preventDefault(); }}
+            onDrop={e => {
+              if (answerSubmitted) return;
+              const matchText = e.dataTransfer.getData('text/plain');
+              if (!rightOptions.includes(matchText)) return;
+              setMatchPairs(prev => prev.map((p, i) => i === idx ? { ...p, match_text: matchText } : p));
+              setRightOptions(prev => prev.filter(opt => opt !== matchText));
+            }}
+          >
+            {pair.match_text ? (
+              <span>{pair.match_text}</span>
+            ) : (
+              <span style={{ color: '#BDBDBD' }}>Drop here</span>
             )}
+          </div>
+          {pair.match_text && !answerSubmitted && (
+            <button
+              type="button"
+              style={{ marginLeft: 8, background: 'none', border: 'none', color: '#D81B60', cursor: 'pointer', fontWeight: 700 }}
+              onClick={() => {
+                setRightOptions(prev => [...prev, pair.match_text]);
+                setMatchPairs(prev => prev.map((p, i) => i === idx ? { ...p, match_text: '' } : p));
+              }}
+            >✕</button>
+          )}
+        </div>
+      ))}
+    </div>
+    {/* RHS: Matches as draggable items */}
+    <div>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>Match</div>
+      {rightOptions.map((opt, idx) => (
+        <div
+          key={opt}
+          draggable={!answerSubmitted}
+          onDragStart={e => {
+            setDraggedIdx(idx);
+            e.dataTransfer.setData('text/plain', opt);
+          }}
+          onDragEnd={() => setDraggedIdx(null)}
+          style={{
+            minWidth: 120,
+            minHeight: 36,
+            background: '#F5F3FF',
+            color: '#4B1FA6',
+            borderRadius: 8,
+            marginBottom: 16,
+            padding: '6px 12px',
+            fontWeight: 700,
+            boxShadow: draggedIdx === idx ? '0 0 0 3px #6C38FF' : 'none',
+            opacity: answerSubmitted ? 0.6 : 1,
+            cursor: answerSubmitted ? 'not-allowed' : 'grab',
+            userSelect: 'none',
+            border: '2px solid #6C38FF',
+            transition: 'background 0.2s',
+          }}
+        >
+          {opt}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
             {/* Submit Button */}
             <button

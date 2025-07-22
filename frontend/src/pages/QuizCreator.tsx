@@ -706,17 +706,17 @@ const QuizCreator: React.FC = () => {
                       <label className="form-label">Match Pairs</label>
                       {matchPairs.map((pair, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: 8 }}>
-                          <input
-                            type="text"
+                      <input
+                        type="text"
                             value={pair.prompt}
                             onChange={e => {
                               const newPairs = [...matchPairs];
                               newPairs[idx].prompt = e.target.value;
                               setMatchPairs(newPairs);
                             }}
-                            className="form-input"
+                        className="form-input"
                             placeholder={`Prompt ${idx + 1}`}
-                            required
+                        required
                           />
                           <span style={{ alignSelf: 'center' }}>→</span>
                           <input

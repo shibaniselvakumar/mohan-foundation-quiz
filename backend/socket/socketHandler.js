@@ -253,6 +253,14 @@ function socketHandler(io) {
             // fallback or error handling
           }
         }
+        // Fetch match_pairs for match questions
+        if (question.question_type === 'match') {
+          const pairsResult = await pool.query(
+            'SELECT id, prompt, match_text FROM match_pairs WHERE question_id = $1',
+            [question.id]
+          );
+          question.match_pairs = pairsResult.rows;
+        }
         sessionState.currentQuestion = question;
 
         // Broadcast quiz start to all participants
@@ -263,7 +271,8 @@ function socketHandler(io) {
             type: question.question_type,
             options: question.options,
             timeLimit: question.time_limit,
-            imageUrl: question.image_url
+            imageUrl: question.image_url,
+            match_pairs: question.match_pairs || []
           },
           questionIndex: 0
         });
@@ -319,6 +328,14 @@ function socketHandler(io) {
             question.options = JSON.parse(question.options);
           } catch (e) {}
         }
+        // Fetch match_pairs for match questions
+        if (question.question_type === 'match') {
+          const pairsResult = await pool.query(
+            'SELECT id, prompt, match_text FROM match_pairs WHERE question_id = $1',
+            [question.id]
+          );
+          question.match_pairs = pairsResult.rows;
+        }
         sessionState.currentQuestion = question;
         sessionState.currentQuestionIndex = nextQuestionIndex;
 
@@ -336,7 +353,8 @@ function socketHandler(io) {
             type: question.question_type,
             options: question.options,
             timeLimit: question.time_limit,
-            imageUrl: question.image_url
+            imageUrl: question.image_url,
+            match_pairs: question.match_pairs || []
           },
           questionIndex: nextQuestionIndex
         });
@@ -375,7 +393,7 @@ function socketHandler(io) {
           const responseResult = await pool.query(
             'SELECT id FROM responses WHERE participant_id = $1 AND question_id = $2',
             [participant.id, sessionState.currentQuestion.id]
-          );
+        );
           if (responseResult.rows.length === 0) {
             // Use draft answer if available
             let answer = null;
