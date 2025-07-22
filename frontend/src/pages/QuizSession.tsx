@@ -15,6 +15,7 @@ import QuizTopbar from '../components/QuizTopbar';
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
 import { useMemo } from 'react';
+import { useCallback } from 'react';
 
 ChartJS.register(
   CategoryScale,
@@ -33,6 +34,7 @@ interface Question {
   timeLimit: number;
   imageUrl?: string;
   totalQuestions?: number;
+  match_pairs?: { prompt: string; match_text: string }[]; // <-- add this line
 }
 
 interface QuestionResult {
@@ -143,7 +145,8 @@ const QuizSession: React.FC = () => {
         text: data.question.text,
         type: data.question.type,
         options: data.question.options,
-        timeLimit: data.question.timeLimit
+        timeLimit: data.question.timeLimit,
+        match_pairs: data.question.match_pairs
       });
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
@@ -159,7 +162,8 @@ const QuizSession: React.FC = () => {
         text: data.question.text,
         type: data.question.type,
         options: data.question.options,
-        timeLimit: data.question.timeLimit
+        timeLimit: data.question.timeLimit,
+        match_pairs: data.question.match_pairs
       });
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
@@ -175,7 +179,8 @@ const QuizSession: React.FC = () => {
         text: data.question.text,
         type: data.question.type,
         options: data.question.options,
-        timeLimit: data.question.timeLimit
+        timeLimit: data.question.timeLimit,
+        match_pairs: data.question.match_pairs
       });
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
@@ -261,16 +266,18 @@ const QuizSession: React.FC = () => {
     };
   }, [socket, timeLeft, currentQuestion]);
 
-  // When a match question is shown, initialize pairs and right options
+  // When a match question is shown, initialize matchPairs (ordered prompts, empty match_text) and rightOptions (shuffled matches)
   useEffect(() => {
-    if (!socket || !participantInfo || !currentQuestion) return;
-    socket.emit('save-draft-answer', {
-      sessionId: participantInfo.sessionId,
-      participantId: participantInfo.participantId,
-      questionId: currentQuestion.id,
-      answer: myAnswer
-    });
-  }, [myAnswer, socket, participantInfo, currentQuestion]);
+    if (currentQuestion?.type === 'match' && (currentQuestion as any).match_pairs) {
+      // Left: prompts in order, right: matches shuffled
+      const pairs = (currentQuestion as any).match_pairs as { prompt: string; match_text: string }[];
+      setMatchPairs(pairs.map(p => ({ prompt: p.prompt, match_text: '' })));
+      setRightOptions(shuffleArray(pairs.map(p => p.match_text)));
+    } else {
+      setMatchPairs([]);
+      setRightOptions([]);
+    }
+  }, [currentQuestion]);
 
   // Emit save-draft-answer on blur and visibility change
   useEffect(() => {
@@ -333,6 +340,17 @@ const QuizSession: React.FC = () => {
 
     return () => clearInterval(timer);
   }, [timeLeft, sessionState]);
+
+  // When submitting, collect the user's matches as an array of {prompt, match_text}
+  const handleMatchSubmit = useCallback(() => {
+    if (!socket || !currentQuestion || answerSubmitted) return;
+    // Only submit if all matches are filled
+    if (matchPairs.some(p => !p.match_text)) return;
+    const answer = matchPairs.map(p => ({ prompt: p.prompt, match_text: p.match_text }));
+    const timeTaken = currentQuestion.timeLimit - timeLeft;
+    socket.emit('submit-answer', { answer, timeTaken });
+    setAnswerSubmitted(true);
+  }, [socket, currentQuestion, answerSubmitted, matchPairs, timeLeft]);
 
   const handleAnswerSubmit = () => {
     if (!socket || !currentQuestion || answerSubmitted) return;
@@ -608,7 +626,7 @@ const QuizSession: React.FC = () => {
               </div>
             )}
 
-            {currentQuestion.type === 'match' && (currentQuestion as any).match_pairs && (
+            {currentQuestion.type === 'match' && matchPairs.length > 0 && (
   <div style={{ display: 'flex', gap: 48, justifyContent: 'center', alignItems: 'flex-start', margin: '2rem 0' }}>
     {/* LHS: Prompts as drop targets */}
     <div>
@@ -670,10 +688,8 @@ const QuizSession: React.FC = () => {
           key={opt}
           draggable={!answerSubmitted}
           onDragStart={e => {
-            setDraggedIdx(idx);
             e.dataTransfer.setData('text/plain', opt);
           }}
-          onDragEnd={() => setDraggedIdx(null)}
           style={{
             minWidth: 120,
             minHeight: 36,
@@ -683,7 +699,6 @@ const QuizSession: React.FC = () => {
             marginBottom: 16,
             padding: '6px 12px',
             fontWeight: 700,
-            boxShadow: draggedIdx === idx ? '0 0 0 3px #6C38FF' : 'none',
             opacity: answerSubmitted ? 0.6 : 1,
             cursor: answerSubmitted ? 'not-allowed' : 'grab',
             userSelect: 'none',
@@ -699,18 +714,31 @@ const QuizSession: React.FC = () => {
 )}
 
             {/* Submit Button */}
-            <button
-              onClick={handleAnswerSubmit}
-              className="submit-btn"
-              disabled={
-                answerSubmitted || 
-                (myAnswer === null || myAnswer === undefined) || 
-                (Array.isArray(myAnswer) && myAnswer.length === 0) ||
-                (currentQuestion.type === 'typed_answer' && !myAnswer)
-              }
-            >
-              {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
-            </button>
+            {currentQuestion.type === 'match' ? (
+              <button
+                onClick={handleMatchSubmit}
+                className="submit-btn"
+                disabled={
+                  answerSubmitted ||
+                  matchPairs.some(p => !p.match_text)
+                }
+              >
+                {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
+              </button>
+            ) : (
+              <button
+                onClick={handleAnswerSubmit}
+                className="submit-btn"
+                disabled={
+                  answerSubmitted || 
+                  (myAnswer === null || myAnswer === undefined) || 
+                  (Array.isArray(myAnswer) && myAnswer.length === 0) ||
+                  (currentQuestion.type === 'typed_answer' && !myAnswer)
+                }
+              >
+                {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
+              </button>
+            )}
           </div>
         )}
 

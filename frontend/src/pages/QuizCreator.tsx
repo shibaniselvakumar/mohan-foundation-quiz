@@ -151,7 +151,19 @@ const QuizCreator: React.FC = () => {
       formData.append('questionText', questionForm.question_text);
       formData.append('questionType', questionForm.question_type);
       formData.append('options', JSON.stringify(questionForm.options));
-      formData.append('correctAnswers', JSON.stringify(questionForm.correct_answers));
+      // --- Fix: For true_false, always send [true] or [false] as correctAnswers ---
+      if (questionForm.question_type === 'true_false') {
+        formData.append('correctAnswers', JSON.stringify([questionForm.correct_answers === true]));
+      } else if (questionForm.question_type === 'typed_answer') {
+        // For typed_answer, always send as a non-empty array
+        if (typeof questionForm.correct_answers === 'string' && questionForm.correct_answers.trim() !== '') {
+          formData.append('correctAnswers', JSON.stringify([questionForm.correct_answers.trim()]));
+        } else {
+          formData.append('correctAnswers', JSON.stringify([]));
+        }
+      } else {
+        formData.append('correctAnswers', JSON.stringify(questionForm.correct_answers));
+      }
       formData.append('timeLimit', questionForm.time_limit.toString());
       formData.append('points', questionForm.points.toString());
       formData.append('negativePoints', questionForm.negative_points.toString());

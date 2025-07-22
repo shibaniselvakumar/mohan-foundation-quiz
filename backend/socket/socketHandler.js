@@ -679,37 +679,56 @@ function startQuestionTimer(sessionId, timeLimit, io) {
 }
 
 function checkAnswer(answer, question) {
-  console.log('DEBUG checkAnswer:', {
-    question_type: question.question_type,
-    correct_answers: question.correct_answers,
-    correct_answers_type: Array.isArray(question.correct_answers) ? 'array' : typeof question.correct_answers,
-    answer,
-    answer_type: typeof answer
-  });
+  // Defensive: parse correct_answers if needed
+  let correct = question.correct_answers;
+  if (typeof correct === 'string') {
+    try { correct = JSON.parse(correct); } catch (e) {}
+  }
+
   switch (question.question_type) {
-    case 'multiple_choice_single':
-      return Array.isArray(question.correct_answers)
-        ? answer === question.correct_answers[0]
-        : answer === question.correct_answers;
-    case 'multiple_choice_multiple':
-      if (!Array.isArray(answer) || !Array.isArray(question.correct_answers)) {
-        return false;
+    case 'multiple_choice_single': {
+      // Accept both string and number, compare as string
+      if (Array.isArray(correct)) correct = correct[0];
+      return String(answer) === String(correct);
+    }
+    case 'multiple_choice_multiple': {
+      // Both should be arrays of strings/numbers
+      if (!Array.isArray(answer) || !Array.isArray(correct)) return false;
+      if (answer.length !== correct.length) return false;
+      // Compare as sets (order-agnostic)
+      const aSet = new Set(answer.map(String));
+      const cSet = new Set(correct.map(String));
+      if (aSet.size !== cSet.size) return false;
+      for (const val of aSet) if (!cSet.has(val)) return false;
+      return true;
+    }
+    case 'true_false': {
+      // Accept 'true', 'false', true, false
+      const a = (typeof answer === 'string') ? answer.toLowerCase() === 'true' : !!answer;
+      const c = Array.isArray(correct) ? (typeof correct[0] === 'string' ? correct[0].toLowerCase() === 'true' : !!correct[0]) : (typeof correct === 'string' ? correct.toLowerCase() === 'true' : !!correct);
+      return a === c;
+    }
+    case 'typed_answer': {
+      // Accept string, ignore case and trim
+      if (!correct) return false;
+      const a = (answer || '').toString().toLowerCase().trim();
+      if (Array.isArray(correct)) {
+        return correct.some(c => a === (c || '').toString().toLowerCase().trim());
+      } else {
+        return a === (correct || '').toString().toLowerCase().trim();
       }
-      return answer.length === question.correct_answers.length &&
-             answer.every(a => question.correct_answers.includes(a));
-    case 'true_false':
-      return Array.isArray(question.correct_answers)
-        ? answer === question.correct_answers[0]
-        : answer === question.correct_answers;
-    case 'typed_answer':
-      return Array.isArray(question.correct_answers)
-        ? answer.toLowerCase().trim() === question.correct_answers[0].toLowerCase().trim()
-        : answer.toLowerCase().trim() === question.correct_answers.toLowerCase().trim();
-    case 'match':
-      if (!Array.isArray(answer) || !Array.isArray(question.correct_answers)) {
-        return false;
-      }
-      return JSON.stringify(answer.sort()) === JSON.stringify(question.correct_answers.sort());
+    }
+    case 'match': {
+      // Both should be arrays of {prompt, match_text}
+      if (!Array.isArray(answer) || !Array.isArray(correct)) return false;
+      if (answer.length !== correct.length) return false;
+      // Compare as sets of prompt:match_text
+      const aSet = new Set(answer.map(p => `${p.prompt}:${p.match_text}`));
+      const cSet = new Set(correct.map(p => `${p.prompt}:${p.match_text}`));
+      if (aSet.size !== cSet.size) return false;
+      for (const val of aSet) if (!cSet.has(val)) return false;
+      return true;
+    }
     default:
       return false;
   }

@@ -357,6 +357,9 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
       }
       if (req.body.correctAnswers) {
         correctAnswers = JSON.parse(req.body.correctAnswers);
+        if (!Array.isArray(correctAnswers) && typeof correctAnswers !== 'object') {
+          correctAnswers = null;
+        }
       }
       if (req.body.matchPairs) {
         matchPairs = JSON.parse(req.body.matchPairs);
@@ -415,6 +418,18 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
       orderIndex
     });
 
+    if (!correctAnswers) {
+      if (questionType === 'match' && Array.isArray(matchPairs)) {
+        correctAnswers = matchPairs;
+      } else {
+        return res.status(400).json({ error: 'correctAnswers is required for this question type.' });
+      }
+    }
+
+    // Debug logs
+    console.log('correctAnswers:', correctAnswers);
+    console.log('Serialized:', JSON.stringify(correctAnswers));
+
     const result = await pool.query(
       `INSERT INTO questions (
         quiz_id, question_text, question_type, options, correct_answers, 
@@ -423,7 +438,7 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
       [
         quizId, questionText, questionType,
         options ? JSON.stringify(options) : null,
-        (typeof correctAnswers === 'string' ? JSON.stringify(correctAnswers) : '""'),
+        JSON.stringify(correctAnswers),
         timeLimit || 30, points || 1, negativePoints || 0, imageUrl, orderIndex
       ]
     );
@@ -480,6 +495,9 @@ router.put('/:quizId/questions/:questionId', authenticateToken, upload.single('i
       }
       if (req.body.correctAnswers) {
         correctAnswers = JSON.parse(req.body.correctAnswers);
+        if (!Array.isArray(correctAnswers) && typeof correctAnswers !== 'object') {
+          correctAnswers = null;
+        }
       }
       if (req.body.matchPairs) {
         matchPairs = JSON.parse(req.body.matchPairs);
@@ -523,7 +541,7 @@ router.put('/:quizId/questions/:questionId', authenticateToken, upload.single('i
     }
     if (correctAnswers !== undefined) {
       updateFields.push(`correct_answers = $${paramCount++}`);
-      values.push(typeof correctAnswers === 'string' ? JSON.stringify(correctAnswers) : '""');
+      values.push(JSON.stringify(correctAnswers));
     }
     if (timeLimit !== undefined) {
       updateFields.push(`time_limit = $${paramCount++}`);
