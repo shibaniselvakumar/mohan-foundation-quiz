@@ -430,6 +430,16 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
     console.log('correctAnswers:', correctAnswers);
     console.log('Serialized:', JSON.stringify(correctAnswers));
 
+    // In both POST and PUT /:quizId/questions endpoints, after setting options, before DB insert/update:
+    console.log('options (to be saved):', options);
+    // In the DB insert/update, always use options ? JSON.stringify(options) : null for the options field.
+    if (questionType === 'true_false') {
+      options = ["true", "false"];
+    }
+    if ((questionType === 'multiple_choice_single' || questionType === 'multiple_choice_multiple') && (!Array.isArray(options) || options.length === 0)) {
+      return res.status(400).json({ error: 'Options are required for MCQ questions.' });
+    }
+
     const result = await pool.query(
       `INSERT INTO questions (
         quiz_id, question_text, question_type, options, correct_answers, 
@@ -777,6 +787,83 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
        ORDER BY q.order_index`,
       [sessionId, quizId]
     );
+
+    // For each question, add a breakdown of answers
+    for (const q of questionsResult.rows) {
+      // Get all responses for this question in this session
+      const responsesResult = await pool.query(
+        'SELECT answer, is_correct FROM responses WHERE question_id = $1 AND session_id = $2',
+        [q.id, sessionId]
+      );
+      const responses = responsesResult.rows;
+      // Always parse options
+      let options = q.options;
+      if (typeof options === 'string') {
+        try { options = JSON.parse(options); } catch { options = []; }
+      }
+      // Fallback for true/false
+      if (q.question_type === 'true_false' && (!Array.isArray(options) || options.length === 0)) {
+        options = ["true", "false"];
+      }
+      // Fallback for MCQ: if options missing, use all unique answers from responses
+      if ((q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple') && (!Array.isArray(options) || options.length === 0)) {
+        const uniqueAnswers = new Set();
+        responses.forEach(r => {
+          let ans = r.answer;
+          if (typeof ans === 'string') {
+            try { ans = JSON.parse(ans); } catch {}
+          }
+          if (Array.isArray(ans)) {
+            ans.forEach(a => uniqueAnswers.add(a));
+          } else if (ans !== undefined && ans !== null) {
+            uniqueAnswers.add(ans);
+          }
+        });
+        options = Array.from(uniqueAnswers);
+      }
+      // Always include options in the question object
+      q.options = options;
+      if (q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') {
+        // Count answers per option
+        let optionCounts = {};
+        if (Array.isArray(options)) {
+          options.forEach(opt => { optionCounts[opt] = 0; });
+        }
+        responses.forEach(r => {
+          let ans = r.answer;
+          if (typeof ans === 'string') {
+            try { ans = JSON.parse(ans); } catch {}
+          }
+          if (Array.isArray(ans)) {
+            ans.forEach(a => { if (optionCounts[a] !== undefined) optionCounts[a]++; });
+          } else if (optionCounts[ans] !== undefined) {
+            optionCounts[ans]++;
+          }
+        });
+        q.breakdown = { option_counts: optionCounts };
+      } else if (q.question_type === 'typed_answer') {
+        // Count all answers entered, case-insensitive
+        let answerCounts = {};
+        responses.forEach(r => {
+          let ans = r.answer;
+          if (typeof ans === 'string') {
+            try { ans = JSON.parse(ans); } catch {}
+          }
+          if (typeof ans === 'string') {
+            const norm = ans.trim().toLowerCase();
+            answerCounts[norm] = (answerCounts[norm] || 0) + 1;
+          } else if (Array.isArray(ans)) {
+            ans.forEach(a => {
+              const norm = (a || '').trim().toLowerCase();
+              answerCounts[norm] = (answerCounts[norm] || 0) + 1;
+            });
+          }
+        });
+        q.breakdown = { answer_counts: answerCounts };
+      } else {
+        q.breakdown = {};
+      }
+    }
 
     // Get participant analytics for this specific session
     const participantsResult = await pool.query(

@@ -55,6 +55,7 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedQuestionId, setExpandedQuestionId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchAnalytics();
@@ -283,19 +284,137 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                   <th>Correct</th>
                   <th>Success Rate</th>
                   <th>Avg Time</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {questions.map((q: QuestionAnalytics) => (
-                  <tr key={q.id}>
-                    <td>{q.question_text.substring(0, 50)}...</td>
-                    <td>{q.question_type}</td>
-                    <td>{q.total_responses}</td>
-                    <td>{q.correct_responses}</td>
-                    <td>{Number(q.success_rate).toFixed(1)}%</td>
-                    <td>{Number(q.average_time || 0).toFixed(1)}s</td>
-                  </tr>
-                ))}
+                {(() => {
+                  const rows: React.ReactNode[] = [];
+                  for (const q of questions) {
+                    rows.push(
+                      <tr key={q.id}>
+                        <td>{q.question_text.substring(0, 50)}...</td>
+                        <td>{q.question_type}</td>
+                        <td>{q.total_responses}</td>
+                        <td>{q.correct_responses}</td>
+                        <td>{Number(q.success_rate).toFixed(1)}%</td>
+                        <td>{Number(q.average_time || 0).toFixed(1)}s</td>
+                        <td>
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => setExpandedQuestionId(expandedQuestionId === q.id ? null : q.id)}
+                          >
+                            {expandedQuestionId === q.id ? 'Hide' : 'View More'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                    if (expandedQuestionId === q.id) {
+                      rows.push(
+                        <tr key={`expanded-${q.id}`}>
+                          <td colSpan={7}>
+                            <div style={{ background: '#F5F3FF', borderRadius: 8, padding: 24, margin: '1rem 0' }}>
+                              {/* MCQ/True-False: Option Counts Bar Chart */}
+                              {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') && q.breakdown && (
+                                <div style={{ marginBottom: 24 }}>
+                                  <h4 style={{ marginBottom: 8 }}>Answers per Option</h4>
+                                  <Bar
+                                    data={{
+                                      labels: q.question_type === 'true_false' ? ['True', 'False'] : Object.keys(q.breakdown.option_counts),
+                                      datasets: [
+                                        {
+                                          label: 'Number of Answers',
+                                          data: q.question_type === 'true_false'
+                                            ? [q.breakdown.option_counts['true'] || 0, q.breakdown.option_counts['false'] || 0]
+                                            : Object.values(q.breakdown.option_counts),
+                                          backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                                          borderColor: 'rgba(54, 162, 235, 1)',
+                                          borderWidth: 1,
+                                        },
+                                      ],
+                                    }}
+                                    options={{
+                                      responsive: true,
+                                      plugins: {
+                                        legend: { display: false },
+                                        title: { display: false },
+                                      },
+                                      scales: { y: { beginAtZero: true } },
+                                    }}
+                                  />
+                                </div>
+                              )}
+                              {/* MCQ/True-False: Success Rate Donut */}
+                              {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') && (
+                                <div style={{ marginBottom: 24, maxWidth: 300 }}>
+                                  <h4 style={{ marginBottom: 8 }}>Success Rate</h4>
+                                  <Doughnut
+                                    data={{
+                                      labels: ['Correct', 'Incorrect'],
+                                      datasets: [
+                                        {
+                                          data: [q.correct_responses, q.total_responses - q.correct_responses],
+                                          backgroundColor: ['#10b981', '#ef4444'],
+                                        },
+                                      ],
+                                    }}
+                                    options={{
+                                      responsive: true,
+                                      plugins: {
+                                        legend: { position: 'top' as const },
+                                        title: { display: false },
+                                      },
+                                    }}
+                                  />
+                                </div>
+                              )}
+                              {/* Typed Answer: Donut + List */}
+                              {q.question_type === 'typed_answer' && q.breakdown && q.breakdown.answer_counts && (
+                                <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
+                                  <div style={{ maxWidth: 300 }}>
+                                    <h4 style={{ marginBottom: 8 }}>Correct vs Incorrect</h4>
+                                    <Doughnut
+                                      data={{
+                                        labels: ['Correct', 'Incorrect'],
+                                        datasets: [
+                                          {
+                                            data: [q.correct_responses, q.total_responses - q.correct_responses],
+                                            backgroundColor: ['#10b981', '#ef4444'],
+                                          },
+                                        ],
+                                      }}
+                                      options={{
+                                        responsive: true,
+                                        plugins: {
+                                          legend: { position: 'top' as const },
+                                          title: { display: false },
+                                        },
+                                      }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <h4 style={{ marginBottom: 8 }}>Answers Entered</h4>
+                                    <table className="analytics-table" style={{ minWidth: 200 }}>
+                                      <thead>
+                                        <tr><th>Answer</th><th>Count</th></tr>
+                                      </thead>
+                                      <tbody>
+                                        {Object.entries(q.breakdown.answer_counts).map(([ans, count]) => (
+                                          <tr key={ans}><td>{ans}</td><td>{String(count)}</td></tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                  }
+                  return rows;
+                })()}
               </tbody>
             </table>
           </div>
