@@ -834,7 +834,9 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
       if (q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') {
         // Count answers per option
         let optionCounts = {};
-        if (Array.isArray(options)) {
+        if (q.question_type === 'true_false') {
+          optionCounts = { true: 0, false: 0 };
+        } else if (Array.isArray(options)) {
           options.forEach(opt => { optionCounts[opt] = 0; });
         }
         responses.forEach(r => {
@@ -842,12 +844,34 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
           if (typeof ans === 'string') {
             try { ans = JSON.parse(ans); } catch {}
           }
-          if (Array.isArray(ans)) {
-            ans.forEach(a => { if (optionCounts[a] !== undefined) optionCounts[a]++; });
-          } else if (optionCounts[ans] !== undefined) {
-            optionCounts[ans]++;
+          if (q.question_type === 'true_false') {
+            if (Array.isArray(ans)) {
+              ans.forEach(a => {
+                console.log('TF Analytics: raw:', a, 'typeof:', typeof a); // Debug log
+                const norm = (
+                  a === true || a === 'true' || a === 'True' || a === 1 || a === '1'
+                ) ? 'true' : 'false';
+                if (optionCounts[norm] !== undefined) optionCounts[norm]++;
+              });
+            } else {
+              console.log('TF Analytics: raw:', ans, 'typeof:', typeof ans); // Debug log
+              const norm = (
+                ans === true || ans === 'true' || ans === 'True' || ans === 1 || ans === '1'
+              ) ? 'true' : 'false';
+              if (optionCounts[norm] !== undefined) optionCounts[norm]++;
+            }
+          } else {
+            if (Array.isArray(ans)) {
+              ans.forEach(a => { if (optionCounts[a] !== undefined) optionCounts[a]++; });
+            } else if (optionCounts[ans] !== undefined) {
+              optionCounts[ans]++;
+            }
           }
         });
+        // --- Ensure true/false always has both keys ---
+        if (q.question_type === 'true_false') {
+          optionCounts = { true: optionCounts['true'] || 0, false: optionCounts['false'] || 0 };
+        }
         q.breakdown = { option_counts: optionCounts };
       } else if (q.question_type === 'typed_answer') {
         // Count all answers entered, case-insensitive

@@ -378,19 +378,36 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                         <tr key={`expanded-${q.id}`}>
                           <td colSpan={7}>
                             <div style={{ background: '#F5F3FF', borderRadius: 8, padding: 24, margin: '1rem 0' }}>
+                              {/* Show full question text at the top */}
+                              <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 16 }}>{q.question_text}</div>
                               {/* MCQ/True-False: Option Counts Bar Chart */}
-                              {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') && q.breakdown && (
+                              {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') && (
                                 <div style={{ marginBottom: 24 }}>
                                   <h4 style={{ marginBottom: 8 }}>Answers per Option</h4>
                                   <Bar
                                     data={{
-                                      labels: q.question_type === 'true_false' ? ['True', 'False'] : Object.keys(q.breakdown.option_counts),
+                                      labels: q.question_type === 'true_false'
+                                        ? ['True', 'False']
+                                        : (q.options && Array.isArray(q.options))
+                                          ? (q.options as string[])
+                                          : Object.keys((q.breakdown && q.breakdown.option_counts) || {}),
                                       datasets: [
                                         {
                                           label: 'Number of Answers',
-                                          data: q.question_type === 'true_false'
-                                            ? [q.breakdown.option_counts['true'] || 0, q.breakdown.option_counts['false'] || 0]
-                                            : Object.values(q.breakdown.option_counts),
+                                          data: (() => {
+                                            if (q.question_type === 'true_false') {
+                                              let tfData = [
+                                                (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts['true'] === 'number') ? q.breakdown.option_counts['true'] : 0,
+                                                (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts['false'] === 'number') ? q.breakdown.option_counts['false'] : 0
+                                              ];
+                                              if (tfData[0] === 0 && tfData[1] === 0) tfData[0] = 0.0001;
+                                              return tfData;
+                                            } else if (q.options && Array.isArray(q.options)) {
+                                              return (q.options as string[]).map((opt: string) => (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts[opt] === 'number') ? q.breakdown.option_counts[opt] : 0);
+                                            } else {
+                                              return Object.values((q.breakdown && q.breakdown.option_counts) || {});
+                                            }
+                                          })(),
                                           backgroundColor: 'rgba(54, 162, 235, 0.8)',
                                           borderColor: 'rgba(54, 162, 235, 1)',
                                           borderWidth: 1,
@@ -410,7 +427,7 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                                 </div>
                               )}
                               {/* MCQ/True-False: Success Rate Donut */}
-                              {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') && (
+                              {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') &&
                                 <div style={{ marginBottom: 24, maxWidth: 300 }}>
                                   <h4 style={{ marginBottom: 8 }}>Success Rate</h4>
                                   <Doughnut
@@ -432,7 +449,7 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                                     }}
                                   />
                                 </div>
-                              )}
+                              }
                               {/* Typed Answer: Donut + List */}
                               {q.question_type === 'typed_answer' && q.breakdown && q.breakdown.answer_counts && (
                                 <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
@@ -484,11 +501,15 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                                     <h4 style={{ marginBottom: 8 }}>Correct Matches per Pair</h4>
                                     <Bar
                                       data={{
-                                        labels: Object.keys(q.breakdown.pair_correct_counts || {}),
+                                        labels: q.breakdown && q.correct_answers && Array.isArray(q.correct_answers)
+                                          ? (q.correct_answers as { prompt: string; match_text: string }[]).map((pair: { prompt: string; match_text: string }) => `${pair.prompt} → ${pair.match_text}`)
+                                          : Object.keys(q.breakdown.pair_correct_counts || {}),
                                         datasets: [
                                           {
                                             label: 'Users Matched Correctly',
-                                            data: Object.values(q.breakdown.pair_correct_counts || {}),
+                                            data: q.breakdown && q.correct_answers && Array.isArray(q.correct_answers)
+                                              ? (q.correct_answers as { prompt: string; match_text: string }[]).map((pair: { prompt: string; match_text: string }) => q.breakdown.pair_correct_counts[pair.prompt] || 0)
+                                              : Object.values(q.breakdown.pair_correct_counts || {}),
                                             backgroundColor: 'rgba(54, 162, 235, 0.8)',
                                             borderColor: 'rgba(54, 162, 235, 1)',
                                             borderWidth: 1,
