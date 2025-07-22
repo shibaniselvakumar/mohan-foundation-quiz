@@ -162,6 +162,70 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
     ],
   };
 
+  // Define a Chart.js plugin for green/red boxes under x-axis labels
+  const getOptionCorrectnessPlugin = (q: any) => ({
+    id: 'optionCorrectnessBoxes',
+    afterDraw: (chart: any) => {
+      const { ctx, chartArea, scales } = chart;
+      if (!ctx || !scales.x) return;
+      const xAxis = scales.x;
+      const yAxis = scales.y;
+      const labels = chart.data.labels;
+      if (!labels) return;
+      // Get correct/incorrect info for each label
+      const correctAnswers = q.correct_answers || [];
+      labels.forEach((label: any, i: number) => {
+        let isCorrect = false;
+        if (q.question_type === 'true_false') {
+          // Normalize both correctAnswers and label to string 'true'/'false'
+          const normLabel = (label === true || label === 'true' || label === 'True') ? 'true' : 'false';
+          if (Array.isArray(correctAnswers)) {
+            isCorrect = correctAnswers.map((a: any) => (a === true || a === 'true' || a === 'True') ? 'true' : 'false').includes(normLabel);
+          } else if (typeof correctAnswers === 'string') {
+            const normCorrect = (correctAnswers === 'true' || correctAnswers === 'True') ? 'true' : 'false';
+            isCorrect = normCorrect === normLabel;
+          }
+        } else {
+          if (Array.isArray(correctAnswers)) {
+            isCorrect = correctAnswers.includes(label) || correctAnswers.includes(label.toString());
+          } else if (typeof correctAnswers === 'string') {
+            isCorrect = correctAnswers === label || correctAnswers === label.toString();
+          }
+        }
+        // Get x position for this label
+        const x = xAxis.getPixelForTick(i);
+        const y = yAxis.bottom + 24; // 24px below axis
+        ctx.save();
+        ctx.beginPath();
+        ctx.fillStyle = isCorrect ? '#10b981' : '#ef4444';
+        ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+        ctx.lineWidth = 1;
+        // Draw rounded rect
+        const boxWidth = 32;
+        const boxHeight = 18;
+        const radius = 8;
+        ctx.moveTo(x - boxWidth/2 + radius, y);
+        ctx.lineTo(x + boxWidth/2 - radius, y);
+        ctx.quadraticCurveTo(x + boxWidth/2, y, x + boxWidth/2, y + radius);
+        ctx.lineTo(x + boxWidth/2, y + boxHeight - radius);
+        ctx.quadraticCurveTo(x + boxWidth/2, y + boxHeight, x + boxWidth/2 - radius, y + boxHeight);
+        ctx.lineTo(x - boxWidth/2 + radius, y + boxHeight);
+        ctx.quadraticCurveTo(x - boxWidth/2, y + boxHeight, x - boxWidth/2, y + boxHeight - radius);
+        ctx.lineTo(x - boxWidth/2, y + radius);
+        ctx.quadraticCurveTo(x - boxWidth/2, y, x - boxWidth/2 + radius, y);
+        ctx.closePath();
+        ctx.fill();
+        // Draw label text
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isCorrect ? 'Correct' : 'Incorrect', x, y + boxHeight/2);
+        ctx.restore();
+      });
+    },
+  });
+
   return (
     <div className="quiz-analytics">
       <div className="analytics-header">
@@ -341,6 +405,7 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                                       },
                                       scales: { y: { beginAtZero: true } },
                                     }}
+                                    plugins={[getOptionCorrectnessPlugin(q)]}
                                   />
                                 </div>
                               )}
@@ -405,6 +470,11 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                                       </tbody>
                                     </table>
                                   </div>
+                                </div>
+                              )}
+                              {q.question_type === 'typed_answer' && q.correct_answers && (
+                                <div style={{ marginBottom: 8, fontWeight: 500, color: '#10b981' }}>
+                                  Correct Answer{Array.isArray(q.correct_answers) && q.correct_answers.length > 1 ? 's' : ''}: {Array.isArray(q.correct_answers) ? q.correct_answers.join(', ') : q.correct_answers}
                                 </div>
                               )}
                             </div>

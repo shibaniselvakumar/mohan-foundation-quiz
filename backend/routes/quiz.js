@@ -772,6 +772,8 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
         q.id,
         q.question_text,
         q.question_type,
+        q.options,
+        q.correct_answers,
         COUNT(r.id) as total_responses,
         COUNT(CASE WHEN r.is_correct THEN 1 END) as correct_responses,
         AVG(r.time_taken) as average_time,
@@ -783,7 +785,7 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
        FROM questions q
        LEFT JOIN responses r ON q.id = r.question_id AND r.session_id = $1
        WHERE q.quiz_id = $2
-       GROUP BY q.id, q.question_text, q.question_type
+       GROUP BY q.id, q.question_text, q.question_type, q.options, q.correct_answers
        ORDER BY q.order_index`,
       [sessionId, quizId]
     );
@@ -801,6 +803,12 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
       if (typeof options === 'string') {
         try { options = JSON.parse(options); } catch { options = []; }
       }
+      // Always parse and include correct_answers
+      let correctAnswers = q.correct_answers;
+      if (typeof correctAnswers === 'string') {
+        try { correctAnswers = JSON.parse(correctAnswers); } catch { correctAnswers = []; }
+      }
+      q.correct_answers = correctAnswers;
       // Fallback for true/false
       if (q.question_type === 'true_false' && (!Array.isArray(options) || options.length === 0)) {
         options = ["true", "false"];

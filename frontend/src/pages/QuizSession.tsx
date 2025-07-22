@@ -726,18 +726,18 @@ const QuizSession: React.FC = () => {
                 {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
               </button>
             ) : (
-              <button
-                onClick={handleAnswerSubmit}
-                className="submit-btn"
-                disabled={
-                  answerSubmitted || 
-                  (myAnswer === null || myAnswer === undefined) || 
-                  (Array.isArray(myAnswer) && myAnswer.length === 0) ||
-                  (currentQuestion.type === 'typed_answer' && !myAnswer)
-                }
-              >
-                {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
-              </button>
+            <button
+              onClick={handleAnswerSubmit}
+              className="submit-btn"
+              disabled={
+                answerSubmitted || 
+                (myAnswer === null || myAnswer === undefined) || 
+                (Array.isArray(myAnswer) && myAnswer.length === 0) ||
+                (currentQuestion.type === 'typed_answer' && !myAnswer)
+              }
+            >
+              {answerSubmitted ? 'Answer Submitted' : 'Submit Answer'}
+            </button>
             )}
           </div>
         )}

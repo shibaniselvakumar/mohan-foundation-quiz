@@ -162,7 +162,7 @@ const QuizCreator: React.FC = () => {
           formData.append('correctAnswers', JSON.stringify([]));
         }
       } else {
-        formData.append('correctAnswers', JSON.stringify(questionForm.correct_answers));
+      formData.append('correctAnswers', JSON.stringify(questionForm.correct_answers));
       }
       formData.append('timeLimit', questionForm.time_limit.toString());
       formData.append('points', questionForm.points.toString());
