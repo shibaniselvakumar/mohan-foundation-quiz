@@ -31,7 +31,7 @@ interface Question {
   id: number;
   question_text: string;
   question_type: string;
-  options?: string[];
+  options?: (string | { text: string; image_url?: string })[];
   time_limit: number;
   points: number;
   negative_points: number;
@@ -469,11 +469,29 @@ const QuizSessionCreator: React.FC = () => {
                 {currentQuestion.options && (
                   <div className="question-options">
                     <h4>Options:</h4>
-                    {currentQuestion.options.map((option, index) => (
-                      <div key={index} className="option-item">
-                        {option}
-                      </div>
-                    ))}
+                    {currentQuestion.options.map((option, index) => {
+                      const optionText = typeof option === 'string' ? option : option.text;
+                      const optionImage = typeof option === 'object' ? option.image_url : null;
+                      return (
+                        <div key={index} className="option-item">
+                          <span>{optionText}</span>
+                          {optionImage && (
+                            <img 
+                              src={optionImage} 
+                              alt="Option" 
+                              style={{ 
+                                width: 48, 
+                                height: 48, 
+                                objectFit: 'cover', 
+                                borderRadius: 6, 
+                                border: '1px solid #ccc',
+                                marginLeft: '8px'
+                              }} 
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

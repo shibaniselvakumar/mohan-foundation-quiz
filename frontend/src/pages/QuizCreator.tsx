@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import PhotoCamera from '@mui/icons-material/PhotoCamera';
 
 interface Question {
   id?: number;
   question_text: string;
   question_type: 'multiple_choice_single' | 'multiple_choice_multiple' | 'true_false' | 'typed_answer' | 'match';
-  options?: string[];
+  options?: OptionWithImage[];
   correct_answers: string[] | string | boolean;
   time_limit: number;
   points: number;
@@ -21,6 +22,18 @@ interface Quiz {
   description: string;
   access_code: string;
   status: string;
+}
+
+interface OptionWithImage {
+  text: string;
+  image_url?: string;
+}
+
+interface MatchPairWithImage {
+  prompt: string;
+  prompt_image_url?: string;
+  match_text: string;
+  match_image_url?: string;
 }
 
 const QuizCreator: React.FC = () => {
@@ -44,7 +57,7 @@ const QuizCreator: React.FC = () => {
   const [questionForm, setQuestionForm] = useState<Question>({
     question_text: '',
     question_type: 'multiple_choice_single',
-    options: [''],
+    options: [{ text: '' }],
     correct_answers: [],
     time_limit: 30,
     points: 1,
@@ -52,7 +65,7 @@ const QuizCreator: React.FC = () => {
     order_index: 0
   });
 
-  const [matchPairs, setMatchPairs] = useState<{ prompt: string; match_text: string }[]>([]);
+  const [matchPairs, setMatchPairs] = useState<MatchPairWithImage[]>([]);
 
   // Update matchPairs when editing a match question
   useEffect(() => {
@@ -167,6 +180,9 @@ const QuizCreator: React.FC = () => {
       formData.append('timeLimit', questionForm.time_limit.toString());
       formData.append('points', questionForm.points.toString());
       formData.append('negativePoints', questionForm.negative_points.toString());
+      if (questionForm.image_url) {
+        formData.append('imageUrl', questionForm.image_url);
+      }
       if (questionForm.question_type === 'match') {
         formData.append('matchPairs', JSON.stringify(matchPairs));
       }
@@ -193,6 +209,10 @@ const QuizCreator: React.FC = () => {
 
       if (editingQuestion?.id) {
         console.log('Updating existing question:', editingQuestion.id);
+        // For updates, we need to send the imageUrl in the form data
+        if (questionForm.image_url) {
+          formData.append('imageUrl', questionForm.image_url);
+        }
         await axios.put(`/api/quiz/${quizId}/questions/${editingQuestion.id}`, formData);
       } else {
         console.log('Creating new question for quiz:', quizId);
@@ -213,11 +233,12 @@ const QuizCreator: React.FC = () => {
     }
   };
 
+  // Fix: Ensure options are always OptionWithImage[]
   const resetQuestionForm = () => {
     setQuestionForm({
       question_text: '',
       question_type: 'multiple_choice_single',
-      options: [''],
+      options: [{ text: '' }],
       correct_answers: [],
       time_limit: 30,
       points: 1,
@@ -232,8 +253,11 @@ const QuizCreator: React.FC = () => {
   const editQuestion = (question: Question) => {
     setQuestionForm({
       ...question,
-      options: question.options || [''],
-      correct_answers: question.correct_answers
+      options: (question.options || []).map(opt =>
+        typeof opt === 'string' ? { text: opt } : opt
+      ),
+      correct_answers: question.correct_answers,
+      image_url: question.image_url
     });
     if (question.question_type === 'match' && (question as any).match_pairs) {
       setMatchPairs((question as any).match_pairs);
@@ -267,7 +291,7 @@ const QuizCreator: React.FC = () => {
   const addOption = () => {
     setQuestionForm(prev => ({
       ...prev,
-      options: [...(prev.options || []), '']
+      options: [...(prev.options || []), { text: '' }]
     }));
   };
 
@@ -278,7 +302,7 @@ const QuizCreator: React.FC = () => {
     }));
   };
 
-  const updateOption = (index: number, value: string) => {
+  const updateOption = (index: number, value: OptionWithImage) => {
     setQuestionForm(prev => ({
       ...prev,
       options: prev.options?.map((opt, i) => i === index ? value : opt) || []
@@ -549,15 +573,52 @@ const QuizCreator: React.FC = () => {
                 <form onSubmit={(e) => { console.log('Question form submitted'); handleQuestionSubmit(e); }}>
                   <div className="form-group">
                     <label htmlFor="questionText" className="form-label">Question Text</label>
-                    <textarea
-                      id="questionText"
-                      value={questionForm.question_text}
-                      onChange={(e) => updateQuestionForm('question_text', e.target.value)}
-                      className="form-input form-textarea"
-                      placeholder="Enter your question"
-                      required
-                      disabled={saving}
-                    />
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                      <textarea
+                        id="questionText"
+                        value={questionForm.question_text}
+                        onChange={(e) => updateQuestionForm('question_text', e.target.value)}
+                        className="form-input form-textarea"
+                        placeholder="Enter your question"
+                        required
+                        disabled={saving}
+                        style={{ flex: 1 }}
+                      />
+                      {/* Picture icon for question image upload */}
+                      <label style={{ cursor: 'pointer', marginTop: '0.5rem' }}>
+                        <PhotoCamera fontSize="small" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              const formData = new FormData();
+                              formData.append('image', e.target.files[0]);
+                              const res = await axios.post('/api/quiz/upload-question-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                              const url = res.data.url;
+                              updateQuestionForm('image_url', url);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {/* Question image preview */}
+                    {questionForm.image_url && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <img 
+                          src={questionForm.image_url} 
+                          alt="Question Preview" 
+                          style={{ 
+                            width: 120, 
+                            height: 120, 
+                            objectFit: 'cover', 
+                            borderRadius: 6, 
+                            border: '1px solid #ccc' 
+                          }} 
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="form-group">
@@ -604,32 +665,55 @@ const QuizCreator: React.FC = () => {
                         <div key={index} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
                           <input
                             type="text"
-                            value={option}
-                            onChange={(e) => updateOption(index, e.target.value)}
+                            value={option.text}
+                            onChange={(e) => updateOption(index, { ...option, text: e.target.value })}
                             className="form-input"
                             placeholder={`Option ${index + 1}`}
                             required
                             disabled={saving}
                           />
+                          {/* Picture icon for image upload */}
+                          <label style={{ cursor: 'pointer', marginRight: 4 }}>
+                            <PhotoCamera fontSize="small" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={async (e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  // Upload image to backend and get URL
+                                  const formData = new FormData();
+                                  formData.append('image', e.target.files[0]);
+                                  const res = await axios.post('/api/quiz/upload-option-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                  const url = res.data.url;
+                                  updateOption(index, { ...option, image_url: url });
+                                }
+                              }}
+                            />
+                          </label>
+                          {/* Preview */}
+                          {option.image_url && (
+                            <img src={option.image_url} alt="Option Preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, border: '1px solid #ccc' }} />
+                          )}
                           {/* Correct answer selection */}
                           {questionForm.question_type === 'multiple_choice_single' ? (
                             <input
                               type="radio"
                               name="correctAnswer"
-                              checked={Array.isArray(questionForm.correct_answers) && (questionForm.correct_answers as string[]).includes(option)}
-                              onChange={() => updateQuestionForm('correct_answers', [option])}
+                              checked={Array.isArray(questionForm.correct_answers) && (questionForm.correct_answers as string[]).includes(option.text)}
+                              onChange={() => updateQuestionForm('correct_answers', [option.text])}
                               disabled={saving}
                             />
                           ) : (
                             <input
                               type="checkbox"
-                              checked={Array.isArray(questionForm.correct_answers) && (questionForm.correct_answers as string[]).includes(option)}
+                              checked={Array.isArray(questionForm.correct_answers) && (questionForm.correct_answers as string[]).includes(option.text)}
                               onChange={(e) => {
                                 const currentAnswers = Array.isArray(questionForm.correct_answers) ? questionForm.correct_answers as string[] : [];
                                 if (e.target.checked) {
-                                  updateQuestionForm('correct_answers', [...currentAnswers, option]);
+                                  updateQuestionForm('correct_answers', [...currentAnswers, option.text]);
                                 } else {
-                                  updateQuestionForm('correct_answers', currentAnswers.filter((ans: string) => ans !== option));
+                                  updateQuestionForm('correct_answers', currentAnswers.filter((ans: string) => ans !== option.text));
                                 }
                               }}
                               disabled={saving}
@@ -717,20 +801,44 @@ const QuizCreator: React.FC = () => {
                     <div className="form-group">
                       <label className="form-label">Match Pairs</label>
                       {matchPairs.map((pair, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: 8 }}>
-                      <input
-                        type="text"
+                        <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: 8, alignItems: 'center' }}>
+                          {/* Prompt input and image */}
+                          <input
+                            type="text"
                             value={pair.prompt}
                             onChange={e => {
                               const newPairs = [...matchPairs];
                               newPairs[idx].prompt = e.target.value;
                               setMatchPairs(newPairs);
                             }}
-                        className="form-input"
+                            className="form-input"
                             placeholder={`Prompt ${idx + 1}`}
-                        required
+                            required
                           />
+                          <label style={{ cursor: 'pointer', marginRight: 4 }}>
+                            <PhotoCamera fontSize="small" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={async (e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  const formData = new FormData();
+                                  formData.append('image', e.target.files[0]);
+                                  const res = await axios.post('/api/quiz/upload-match-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                  const url = res.data.url;
+                                  const newPairs = [...matchPairs];
+                                  newPairs[idx].prompt_image_url = url;
+                                  setMatchPairs(newPairs);
+                                }
+                              }}
+                            />
+                          </label>
+                          {pair.prompt_image_url && (
+                            <img src={pair.prompt_image_url} alt="Prompt Preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, border: '1px solid #ccc' }} />
+                          )}
                           <span style={{ alignSelf: 'center' }}>→</span>
+                          {/* Match input and image */}
                           <input
                             type="text"
                             value={pair.match_text}
@@ -743,6 +851,28 @@ const QuizCreator: React.FC = () => {
                             placeholder={`Match ${idx + 1}`}
                             required
                           />
+                          <label style={{ cursor: 'pointer', marginRight: 4 }}>
+                            <PhotoCamera fontSize="small" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={async (e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  const formData = new FormData();
+                                  formData.append('image', e.target.files[0]);
+                                  const res = await axios.post('/api/quiz/upload-match-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                  const url = res.data.url;
+                                  const newPairs = [...matchPairs];
+                                  newPairs[idx].match_image_url = url;
+                                  setMatchPairs(newPairs);
+                                }
+                              }}
+                            />
+                          </label>
+                          {pair.match_image_url && (
+                            <img src={pair.match_image_url} alt="Match Preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, border: '1px solid #ccc' }} />
+                          )}
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
@@ -861,12 +991,28 @@ const QuizCreator: React.FC = () => {
                     </div>
                   </div>
 
-                  <p style={{
-                    color: 'var(--gray-700)',
-                    marginBottom: '1rem'
-                  }}>
-                    {question.question_text}
-                  </p>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <p style={{
+                      color: 'var(--gray-700)',
+                      marginBottom: question.image_url ? '0.5rem' : '0'
+                    }}>
+                      {question.question_text}
+                    </p>
+                    {question.image_url && (
+                      <img 
+                        src={question.image_url} 
+                        alt="Question" 
+                        style={{ 
+                          width: 120, 
+                          height: 120, 
+                          objectFit: 'cover', 
+                          borderRadius: 6, 
+                          border: '1px solid #ccc',
+                          marginTop: '0.5rem'
+                        }} 
+                      />
+                    )}
+                  </div>
 
                   <div style={{
                     display: 'flex',

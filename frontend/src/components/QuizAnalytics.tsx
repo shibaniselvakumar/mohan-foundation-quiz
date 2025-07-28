@@ -34,6 +34,11 @@ interface QuestionAnalytics {
   correct_responses: number;
   average_time: number | string;
   success_rate: number | string;
+  image_url?: string;
+  options?: Array<{
+    text: string;
+    image_url?: string;
+  }>;
 }
 
 interface ParticipantAnalytics {
@@ -65,6 +70,7 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
     try {
       setLoading(true);
       const response = await axios.get(`/api/quiz/${quizId}/analytics/${sessionId}`);
+      console.log('Analytics data received:', response.data);
       setAnalytics(response.data);
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to fetch analytics');
@@ -164,6 +170,33 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
 
   // Define a Chart.js plugin for green/red boxes under x-axis labels
   const getOptionCorrectnessPlugin = (q: any) => ({
+    id: 'optionCorrectness',
+    afterDraw: (chart: any) => {
+      const ctx = chart.ctx;
+      const meta = chart.getDatasetMeta(0);
+      const options = q.options || [];
+      
+      meta.data.forEach((bar: any, index: number) => {
+        const option = options[index];
+        if (option && option.image_url) {
+          const x = bar.x;
+          const y = bar.y + bar.height + 10;
+          
+          // Draw option image
+          const img = new Image();
+          img.onload = () => {
+            const imgSize = 24;
+            ctx.save();
+            ctx.drawImage(img, x - imgSize/2, y, imgSize, imgSize);
+            ctx.restore();
+          };
+          img.src = option.image_url;
+        }
+      });
+    },
+  });
+
+  const getOptionImagesPlugin = (q: any) => ({
     id: 'optionCorrectnessBoxes',
     afterDraw: (chart: any) => {
       const { ctx, chartArea, scales } = chart;
@@ -379,52 +412,128 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                           <td colSpan={7}>
                             <div style={{ background: '#F5F3FF', borderRadius: 8, padding: 24, margin: '1rem 0' }}>
                               {/* Show full question text at the top */}
-                              <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 16 }}>{q.question_text}</div>
+                              <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: (q.image_url || q.imageUrl) ? '8px' : '0' }}>
+                                  {q.question_text}
+                                </div>
+                                {(q.image_url || q.imageUrl) && (
+                                  <div>
+                                    <img 
+                                      src={(() => {
+                                        let imageUrl = q.image_url || q.imageUrl;
+                                        // Handle case where image_url is stored as JSON string
+                                        if (typeof imageUrl === 'string') {
+                                          try {
+                                            const parsed = JSON.parse(imageUrl);
+                                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                              return parsed[0]; // Use first image if it's an array
+                                            }
+                                          } catch (e) {
+                                            // If parsing fails, try to extract from malformed JSON-like string
+                                            // Handle cases like {"uploads/filename.png","uploads/filename.png"}
+                                            const match = imageUrl.match(/"([^"]+)"/);
+                                            if (match) {
+                                              return match[1];
+                                            }
+                                            // Also try to extract from cases like {uploads/filename.png,uploads/filename.png}
+                                            const simpleMatch = imageUrl.match(/\{([^,]+),/);
+                                            if (simpleMatch) {
+                                              return simpleMatch[1];
+                                            }
+                                            // Handle URL-encoded malformed JSON
+                                            if (imageUrl.includes('%7B') && imageUrl.includes('%7D')) {
+                                              // Decode URL encoding first
+                                              const decoded = decodeURIComponent(imageUrl);
+                                              const decodedMatch = decoded.match(/"([^"]+)"/);
+                                              if (decodedMatch) {
+                                                return decodedMatch[1];
+                                              }
+                                            }
+                                            // If all else fails, use as is
+                                            return imageUrl;
+                                          }
+                                        } else if (Array.isArray(imageUrl) && imageUrl.length > 0) {
+                                          return imageUrl[0]; // Use first image if it's an array
+                                        }
+                                        return imageUrl;
+                                      })()} 
+                                      alt="Question" 
+                                      style={{ 
+                                        width: 120, 
+                                        height: 120, 
+                                        objectFit: 'cover', 
+                                        borderRadius: 6, 
+                                        border: '1px solid #ccc',
+                                        marginTop: '8px'
+                                      }} 
+                                      onError={(e) => console.log('Image failed to load:', (e.target as HTMLImageElement).src)}
+                                      onLoad={() => console.log('Image loaded successfully:', q.image_url || q.imageUrl)}
+                                    />
+                                  </div>
+                                )}
+                              </div>
                               {/* MCQ/True-False: Option Counts Bar Chart */}
                               {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') && (
-                                <div style={{ marginBottom: 24 }}>
-                                  <h4 style={{ marginBottom: 8 }}>Answers per Option</h4>
-                                  <Bar
-                                    data={{
-                                      labels: q.question_type === 'true_false'
-                                        ? ['True', 'False']
-                                        : (q.options && Array.isArray(q.options))
-                                          ? (q.options as string[])
-                                          : Object.keys((q.breakdown && q.breakdown.option_counts) || {}),
-                                      datasets: [
-                                        {
-                                          label: 'Number of Answers',
-                                          data: (() => {
-                                            if (q.question_type === 'true_false') {
-                                              let tfData = [
-                                                (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts['true'] === 'number') ? q.breakdown.option_counts['true'] : 0,
-                                                (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts['false'] === 'number') ? q.breakdown.option_counts['false'] : 0
-                                              ];
-                                              if (tfData[0] === 0 && tfData[1] === 0) tfData[0] = 0.0001;
-                                              return tfData;
-                                            } else if (q.options && Array.isArray(q.options)) {
-                                              return (q.options as string[]).map((opt: string) => (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts[opt] === 'number') ? q.breakdown.option_counts[opt] : 0);
-                                            } else {
-                                              return Object.values((q.breakdown && q.breakdown.option_counts) || {});
-                                            }
-                                          })(),
-                                          backgroundColor: 'rgba(54, 162, 235, 0.8)',
-                                          borderColor: 'rgba(54, 162, 235, 1)',
-                                          borderWidth: 1,
-                                        },
-                                      ],
-                                    }}
-                                    options={{
-                                      responsive: true,
-                                      plugins: {
-                                        legend: { display: false },
-                                        title: { display: false },
-                                      },
-                                      scales: { y: { beginAtZero: true } },
-                                    }}
-                                    plugins={[getOptionCorrectnessPlugin(q)]}
-                                  />
-                                </div>
+                              <div style={{ marginBottom: 24 }}>
+                                <h4 style={{ marginBottom: 8 }}>Answers per Option</h4>
+                                <Bar
+                                data={{
+                                  labels: (() => {
+                                    if (q.question_type === 'match' && q.breakdown && q.breakdown.match_pairs && Array.isArray(q.breakdown.match_pairs)) {
+                                      return q.breakdown.match_pairs.map((pair: any) => `${pair.prompt} → ${pair.match_text}`);
+                                    }
+                                    if (q.question_type === 'true_false') {
+                                      return ['True', 'False'];
+                                    }
+                                    if (q.options && Array.isArray(q.options)) {
+                                      return (q.options as any[]).map((opt: any) => typeof opt === 'string' ? opt : (opt.text || String(opt)));
+                                    }
+                                    return Object.keys((q.breakdown && q.breakdown.option_counts) || {});
+                                  })(),
+                                  datasets: [
+                                    {
+                                      label: 'Number of Answers',
+                                      data: (() => {
+                                        if (q.question_type === 'true_false') {
+                                          let tfData = [
+                                            (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts['true'] === 'number') ? q.breakdown.option_counts['true'] : 0,
+                                            (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts['false'] === 'number') ? q.breakdown.option_counts['false'] : 0
+                                          ];
+                                          if (tfData[0] === 0 && tfData[1] === 0) tfData[0] = 0.0001;
+                                          return tfData;
+                                        }                 else if (q.question_type === 'match' && q.breakdown && q.breakdown.pair_correct_counts) {
+                  // For match questions, use the pair_correct_counts data
+                  const chartData = Object.values(q.breakdown.pair_correct_counts);
+                  return chartData;
+                }
+                else if (q.options && Array.isArray(q.options)) {
+                  const chartData = (q.options as any[]).map((opt: any) => {
+                    const optionText = typeof opt === 'string' ? opt : (opt.text || String(opt));
+                    const count = (q.breakdown && q.breakdown.option_counts && typeof q.breakdown.option_counts[optionText] === 'number') ? q.breakdown.option_counts[optionText] : 0;
+                    return count;
+                  });
+                  return chartData;
+                } else {
+                                          return Object.values((q.breakdown && q.breakdown.option_counts) || {});
+                                        }
+                                      })(),
+                                      backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                                      borderColor: 'rgba(54, 162, 235, 1)',
+                                      borderWidth: 1,
+                                    },
+                                  ],
+                                }}
+                                options={{
+                                  responsive: true,
+                                  plugins: {
+                                    legend: { display: false },
+                                    title: { display: false },
+                                  },
+                                  scales: { y: { beginAtZero: true } },
+                                }}
+                                plugins={[getOptionCorrectnessPlugin(q), getOptionImagesPlugin(q)]}
+                              />
+                              </div>
                               )}
                               {/* MCQ/True-False: Success Rate Donut */}
                               {(q.question_type === 'multiple_choice_single' || q.question_type === 'multiple_choice_multiple' || q.question_type === 'true_false') &&
@@ -496,26 +605,46 @@ const QuizAnalytics: React.FC<QuizAnalyticsProps> = ({ sessionId, quizId }) => {
                               )}
                               {/* Match: Bar chart for pair correctness and donut for all pairs correct */}
                               {q.question_type === 'match' && q.breakdown && (
-                                <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
-                                  <div style={{ minWidth: 320, maxWidth: 400 }}>
-                                    <h4 style={{ marginBottom: 8 }}>Correct Matches per Pair</h4>
-                                    <Bar
-                                      data={{
-                                        labels: q.breakdown && q.correct_answers && Array.isArray(q.correct_answers)
-                                          ? (q.correct_answers as { prompt: string; match_text: string }[]).map((pair: { prompt: string; match_text: string }) => `${pair.prompt} → ${pair.match_text}`)
-                                          : Object.keys(q.breakdown.pair_correct_counts || {}),
-                                        datasets: [
-                                          {
-                                            label: 'Users Matched Correctly',
-                                            data: q.breakdown && q.correct_answers && Array.isArray(q.correct_answers)
-                                              ? (q.correct_answers as { prompt: string; match_text: string }[]).map((pair: { prompt: string; match_text: string }) => q.breakdown.pair_correct_counts[pair.prompt] || 0)
-                                              : Object.values(q.breakdown.pair_correct_counts || {}),
-                                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
-                                            borderColor: 'rgba(54, 162, 235, 1)',
-                                            borderWidth: 1,
-                                          },
-                                        ],
-                                      }}
+                                  <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
+                                    <div style={{ minWidth: 320, maxWidth: 400 }}>
+                                      <h4 style={{ marginBottom: 8 }}>Correct Matches per Pair</h4>
+                                      <Bar
+                                        data={{
+                                          labels: (() => {
+                                            console.log('Match question breakdown:', q.breakdown);
+                                            // Use the match pairs data from the backend
+                                            if (q.breakdown && q.breakdown.match_pairs && Array.isArray(q.breakdown.match_pairs)) {
+                                              const labels = q.breakdown.match_pairs.map((pair: any) => `${pair.prompt} → ${pair.match_text}`);
+                                              console.log('Match question labels:', labels);
+                                              return labels;
+                                            }
+                                            // Fallback to just prompt names
+                                            if (q.breakdown && q.breakdown.pair_correct_counts) {
+                                              const labels = Object.keys(q.breakdown.pair_correct_counts);
+                                              console.log('Match question fallback labels:', labels);
+                                              return labels;
+                                            }
+                                            console.log('No labels found for match question');
+                                            return [];
+                                          })(),
+                                          datasets: [
+                                            {
+                                              label: 'Users Matched Correctly',
+                                              data: (() => {
+                                                if (q.breakdown && q.breakdown.pair_correct_counts) {
+                                                  const data = Object.values(q.breakdown.pair_correct_counts);
+                                                  console.log('Match question data:', data);
+                                                  return data;
+                                                }
+                                                console.log('No data found for match question');
+                                                return [];
+                                              })(),
+                                              backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                                              borderColor: 'rgba(54, 162, 235, 1)',
+                                              borderWidth: 1,
+                                            },
+                                          ],
+                                        }}
                                       options={{
                                         responsive: true,
                                         plugins: {

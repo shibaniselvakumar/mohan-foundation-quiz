@@ -30,11 +30,12 @@ interface Question {
   id: number;
   text: string;
   type: string;
-  options?: string[];
+  options?: (string | { text: string; image_url?: string })[];
   timeLimit: number;
   imageUrl?: string;
+  image_url?: string;
   totalQuestions?: number;
-  match_pairs?: { prompt: string; match_text: string }[]; // <-- add this line
+  match_pairs?: { prompt: string; match_text: string }[];
 }
 
 interface QuestionResult {
@@ -139,15 +140,20 @@ const QuizSession: React.FC = () => {
 
     // Listen for show-question event (admin-paced)
     socket.on('show-question', (data) => {
+      console.log('Received show-question data:', data);
       setSessionState('active');
-      setCurrentQuestion({
+      const questionData = {
         id: data.question.id,
         text: data.question.text,
         type: data.question.type,
         options: data.question.options,
         timeLimit: data.question.timeLimit,
-        match_pairs: data.question.match_pairs
-      });
+        match_pairs: data.question.match_pairs,
+        imageUrl: data.question.imageUrl,
+        image_url: data.question.image_url
+      };
+      console.log('Setting currentQuestion:', questionData);
+      setCurrentQuestion(questionData);
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
       setMyAnswer(null);
@@ -163,7 +169,9 @@ const QuizSession: React.FC = () => {
         type: data.question.type,
         options: data.question.options,
         timeLimit: data.question.timeLimit,
-        match_pairs: data.question.match_pairs
+        match_pairs: data.question.match_pairs,
+        imageUrl: data.question.imageUrl,
+        image_url: data.question.image_url
       });
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
@@ -180,7 +188,9 @@ const QuizSession: React.FC = () => {
         type: data.question.type,
         options: data.question.options,
         timeLimit: data.question.timeLimit,
-        match_pairs: data.question.match_pairs
+        match_pairs: data.question.match_pairs,
+        imageUrl: data.question.imageUrl,
+        image_url: data.question.image_url
       });
       setQuestionIndex(data.questionIndex);
       setTimeLeft(data.question.timeLimit);
@@ -523,11 +533,13 @@ const QuizSession: React.FC = () => {
             </div>
 
             {/* Question Image */}
-            {currentQuestion.imageUrl && (
+            {(currentQuestion.imageUrl || currentQuestion.image_url) && (
               <img
-                src={currentQuestion.imageUrl}
+                src={currentQuestion.imageUrl || currentQuestion.image_url}
                 alt="Question"
                 className="question-image"
+                onError={(e) => console.error('Image failed to load:', (e.target as HTMLImageElement).src)}
+                onLoad={() => console.log('Image loaded successfully')}
               />
             )}
 
@@ -539,44 +551,80 @@ const QuizSession: React.FC = () => {
             {/* Question Options */}
             {currentQuestion.type === 'multiple_choice_single' && currentQuestion.options && (
               <div className="question-options">
-                {currentQuestion.options.map((option, index) => (
-                  <div
-                    key={index}
-                    className={`option-item ${myAnswer === option ? 'selected' : ''}`}
-                    onClick={() => handleOptionSelect(option)}
-                  >
-                    <input
-                      type="radio"
-                      name="answer"
-                      checked={myAnswer === option}
-                      onChange={() => handleOptionSelect(option)}
-                      className="option-checkbox"
-                      disabled={answerSubmitted}
-                    />
-                    <span className="option-text">{option}</span>
-                  </div>
-                ))}
+                {currentQuestion.options.map((option, index) => {
+                  const optionText = typeof option === 'string' ? option : option.text;
+                  const optionImage = typeof option === 'object' ? option.image_url : null;
+                  return (
+                    <div
+                      key={index}
+                      className={`option-item ${myAnswer === optionText ? 'selected' : ''}`}
+                      onClick={() => handleOptionSelect(optionText)}
+                    >
+                      <input
+                        type="radio"
+                        name="answer"
+                        checked={myAnswer === optionText}
+                        onChange={() => handleOptionSelect(optionText)}
+                        className="option-checkbox"
+                        disabled={answerSubmitted}
+                      />
+                      <span className="option-text">{optionText}</span>
+                      {optionImage && (
+                        <img 
+                          src={optionImage} 
+                          alt="Option" 
+                          style={{ 
+                            width: 48, 
+                            height: 48, 
+                            objectFit: 'cover', 
+                            borderRadius: 6, 
+                            border: '1px solid #ccc',
+                            marginLeft: '8px'
+                          }} 
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
             {currentQuestion.type === 'multiple_choice_multiple' && currentQuestion.options && (
               <div className="question-options">
-                {currentQuestion.options.map((option, index) => (
-                  <div
-                    key={index}
-                    className={`option-item ${Array.isArray(myAnswer) && myAnswer.includes(option) ? 'selected' : ''}`}
-                    onClick={() => handleOptionSelect(option)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Array.isArray(myAnswer) && myAnswer.includes(option)}
-                      onChange={() => handleOptionSelect(option)}
-                      className="option-checkbox"
-                      disabled={answerSubmitted}
-                    />
-                    <span className="option-text">{option}</span>
-                  </div>
-                ))}
+                {currentQuestion.options.map((option, index) => {
+                  const optionText = typeof option === 'string' ? option : option.text;
+                  const optionImage = typeof option === 'object' ? option.image_url : null;
+                  return (
+                    <div
+                      key={index}
+                      className={`option-item ${Array.isArray(myAnswer) && myAnswer.includes(optionText) ? 'selected' : ''}`}
+                      onClick={() => handleOptionSelect(optionText)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Array.isArray(myAnswer) && myAnswer.includes(optionText)}
+                        onChange={() => handleOptionSelect(optionText)}
+                        className="option-checkbox"
+                        disabled={answerSubmitted}
+                      />
+                      <span className="option-text">{optionText}</span>
+                      {optionImage && (
+                        <img 
+                          src={optionImage} 
+                          alt="Option" 
+                          style={{ 
+                            width: 48, 
+                            height: 48, 
+                            objectFit: 'cover', 
+                            borderRadius: 6, 
+                            border: '1px solid #ccc',
+                            marginLeft: '8px'
+                          }} 
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 

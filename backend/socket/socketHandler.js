@@ -771,18 +771,23 @@ async function getQuestionResults(sessionId, questionId) {
     case 'multiple_choice_multiple':
       const optionCounts = {};
       question.options.forEach(option => {
-        optionCounts[option] = 0;
+        const optionText = typeof option === 'string' ? option : option.text;
+        optionCounts[optionText] = 0;
       });
       
       responses.forEach(response => {
         if (Array.isArray(response.answer)) {
           response.answer.forEach(ans => {
-            if (optionCounts.hasOwnProperty(ans)) {
-              optionCounts[ans]++;
+            const answerText = typeof ans === 'string' ? ans : (ans && ans.text ? ans.text : String(ans));
+            if (optionCounts.hasOwnProperty(answerText)) {
+              optionCounts[answerText]++;
             }
           });
-        } else if (optionCounts.hasOwnProperty(response.answer)) {
-          optionCounts[response.answer]++;
+        } else {
+          const answerText = typeof response.answer === 'string' ? response.answer : (response.answer && response.answer.text ? response.answer.text : String(response.answer));
+          if (optionCounts.hasOwnProperty(answerText)) {
+            optionCounts[answerText]++;
+          }
         }
       });
 

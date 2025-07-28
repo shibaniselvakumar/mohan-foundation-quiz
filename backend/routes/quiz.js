@@ -290,60 +290,6 @@ router.put('/:quizId', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete quiz
-router.delete('/:quizId', authenticateToken, async (req, res) => {
-  try {
-    const { quizId } = req.params;
-    const creatorId = req.user.id;
-
-    // Verify quiz ownership
-    const quizResult = await pool.query(
-      'SELECT id FROM quizzes WHERE id = $1 AND creator_id = $2',
-      [quizId, creatorId]
-    );
-
-    if (quizResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Quiz not found' });
-    }
-
-    // Delete quiz and all related data in a transaction
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Delete responses first (due to foreign key constraints)
-      await client.query('DELETE FROM responses WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = $1)', [quizId]);
-      
-      // Delete participants
-      await client.query('DELETE FROM participants WHERE session_id IN (SELECT id FROM quiz_sessions WHERE quiz_id = $1)', [quizId]);
-      
-      // Delete quiz sessions
-      await client.query('DELETE FROM quiz_sessions WHERE quiz_id = $1', [quizId]);
-      
-      // Delete match pairs (linked to questions, not directly to quiz)
-      await client.query('DELETE FROM match_pairs WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = $1)', [quizId]);
-      
-      // Delete questions
-      await client.query('DELETE FROM questions WHERE quiz_id = $1', [quizId]);
-      
-      // Finally delete the quiz
-      await client.query('DELETE FROM quizzes WHERE id = $1', [quizId]);
-
-      await client.query('COMMIT');
-
-      res.json({ message: 'Quiz deleted successfully' });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error('Delete quiz error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Get quiz by ID with questions (include match pairs)
 router.get('/:quizId', authenticateToken, async (req, res) => {
   try {
@@ -457,6 +403,8 @@ router.post('/:quizId/questions', authenticateToken, upload.single('image'), asy
     let imageUrl = null;
     if (req.file) {
       imageUrl = `/uploads/${req.file.filename}`;
+    } else if (req.body.imageUrl) {
+      imageUrl = req.body.imageUrl;
     }
 
     console.log('About to insert question with data:', {
@@ -585,6 +533,8 @@ router.put('/:quizId/questions/:questionId', authenticateToken, upload.single('i
     let imageUrl = null;
     if (req.file) {
       imageUrl = `/uploads/${req.file.filename}`;
+    } else if (req.body.imageUrl) {
+      imageUrl = req.body.imageUrl;
     }
 
     const updateFields = [];
@@ -693,7 +643,90 @@ router.delete('/:quizId/questions/:questionId', authenticateToken, async (req, r
   }
 });
 
+// Delete quiz
+router.delete('/:quizId', authenticateToken, async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const creatorId = req.user.id;
 
+    // Verify quiz ownership
+    const quizResult = await pool.query(
+      'SELECT id FROM quizzes WHERE id = $1 AND creator_id = $2',
+      [quizId, creatorId]
+    );
+
+    if (quizResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+
+    // Delete all related data in the correct order
+    // 1. Delete responses
+    await pool.query('DELETE FROM responses WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = $1)', [quizId]);
+    
+    // 2. Delete match pairs
+    await pool.query('DELETE FROM match_pairs WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = $1)', [quizId]);
+    
+    // 3. Delete participants
+    await pool.query('DELETE FROM participants WHERE session_id IN (SELECT id FROM quiz_sessions WHERE quiz_id = $1)', [quizId]);
+    
+    // 4. Delete quiz sessions
+    await pool.query('DELETE FROM quiz_sessions WHERE quiz_id = $1', [quizId]);
+    
+    // 5. Delete questions
+    await pool.query('DELETE FROM questions WHERE quiz_id = $1', [quizId]);
+    
+    // 6. Delete the quiz
+    await pool.query('DELETE FROM quizzes WHERE id = $1', [quizId]);
+
+    res.json({ message: 'Quiz deleted successfully' });
+  } catch (error) {
+    console.error('Delete quiz error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete session
+router.delete('/session/:sessionId', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const creatorId = req.user.id;
+
+    // Get session info and verify ownership
+    const sessionResult = await pool.query(
+      `SELECT qs.*, q.creator_id
+       FROM quiz_sessions qs
+       JOIN quizzes q ON qs.quiz_id = q.id
+       WHERE qs.id = $1`,
+      [sessionId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const session = sessionResult.rows[0];
+
+    // Verify quiz ownership
+    if (session.creator_id !== creatorId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Delete all related data in the correct order
+    // 1. Delete responses for this session
+    await pool.query('DELETE FROM responses WHERE session_id = $1', [sessionId]);
+    
+    // 2. Delete participants for this session
+    await pool.query('DELETE FROM participants WHERE session_id = $1', [sessionId]);
+    
+    // 3. Delete the session
+    await pool.query('DELETE FROM quiz_sessions WHERE id = $1', [sessionId]);
+
+    res.json({ message: 'Session deleted successfully' });
+  } catch (error) {
+    console.error('Delete session error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Get active session for quiz
 router.get('/:quizId/active-session', authenticateToken, async (req, res) => {
@@ -806,6 +839,8 @@ router.get('/session/:sessionId', authenticateToken, async (req, res) => {
 
 // Get detailed analytics for a session
 router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) => {
+  console.log('=== ANALYTICS ENDPOINT CALLED ===');
+  console.log('Quiz ID:', req.params.quizId, 'Session ID:', req.params.sessionId);
   try {
     const { quizId, sessionId } = req.params;
     const creatorId = req.user.id;
@@ -828,6 +863,7 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
         q.question_type,
         q.options,
         q.correct_answers,
+        q.image_url,
         COUNT(r.id) as total_responses,
         COUNT(CASE WHEN r.is_correct THEN 1 END) as correct_responses,
         AVG(r.time_taken) as average_time,
@@ -839,13 +875,14 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
        FROM questions q
        LEFT JOIN responses r ON q.id = r.question_id AND r.session_id = $1
        WHERE q.quiz_id = $2
-       GROUP BY q.id, q.question_text, q.question_type, q.options, q.correct_answers
+       GROUP BY q.id, q.question_text, q.question_type, q.options, q.correct_answers, q.image_url
        ORDER BY q.order_index`,
       [sessionId, quizId]
     );
 
     // For each question, add a breakdown of answers
     for (const q of questionsResult.rows) {
+
       // Get all responses for this question in this session
       const responsesResult = await pool.query(
         'SELECT answer, is_correct FROM responses WHERE question_id = $1 AND session_id = $2',
@@ -891,7 +928,10 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
         if (q.question_type === 'true_false') {
           optionCounts = { true: 0, false: 0 };
         } else if (Array.isArray(options)) {
-          options.forEach(opt => { optionCounts[opt] = 0; });
+          options.forEach(opt => { 
+            const optionText = typeof opt === 'string' ? opt : opt.text;
+            optionCounts[optionText] = 0; 
+          });
         }
         responses.forEach(r => {
           let ans = r.answer;
@@ -914,13 +954,30 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
               ) ? 'true' : 'false';
               if (optionCounts[norm] !== undefined) optionCounts[norm]++;
             }
-          } else {
-            if (Array.isArray(ans)) {
-              ans.forEach(a => { if (optionCounts[a] !== undefined) optionCounts[a]++; });
-            } else if (optionCounts[ans] !== undefined) {
-              optionCounts[ans]++;
+                      } else {
+              if (Array.isArray(ans)) {
+                ans.forEach(a => { 
+                  // Handle both string and object options
+                  const answerText = typeof a === 'string' ? a : a.text;
+                  if (optionCounts[answerText] !== undefined) optionCounts[answerText]++; 
+                });
+              } else {
+                // Handle string, number, and object answers
+                let answerText;
+                if (typeof ans === 'string') {
+                  answerText = ans;
+                } else if (typeof ans === 'number') {
+                  answerText = ans.toString();
+                } else if (ans && typeof ans === 'object' && ans.text) {
+                  answerText = ans.text;
+                } else {
+                  answerText = String(ans);
+                }
+                if (optionCounts[answerText] !== undefined) {
+                  optionCounts[answerText]++;
+                }
+              }
             }
-          }
         });
         // --- Ensure true/false always has both keys ---
         if (q.question_type === 'true_false') {
@@ -960,11 +1017,12 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
           pairCorrectCounts[pair.prompt] = 0;
         });
         let allPairsCorrectCount = 0;
-        responses.forEach(r => {
+        responses.forEach((r, index) => {
           let ans = r.answer;
           if (typeof ans === 'string') {
             try { ans = JSON.parse(ans); } catch {}
           }
+          
           // ans should be array of {prompt, match_text}
           if (Array.isArray(ans)) {
             let allCorrect = true;
@@ -977,11 +1035,18 @@ router.get('/:quizId/analytics/:sessionId', authenticateToken, async (req, res) 
               }
             });
             if (allCorrect) allPairsCorrectCount++;
+          } else {
+            // Handle null/undefined responses - count as 0 correct for all pairs
+            // This ensures we count users who didn't submit any matches
+            matchPairs.forEach(pair => {
+              // pairCorrectCounts[pair.prompt] stays at 0 (already initialized)
+            });
           }
         });
         q.breakdown = {
           pair_correct_counts: pairCorrectCounts,
-          all_pairs_correct_count: allPairsCorrectCount
+          all_pairs_correct_count: allPairsCorrectCount,
+          match_pairs: matchPairs // Include the match pairs for frontend display
         };
       } else {
         q.breakdown = {};
@@ -1144,6 +1209,32 @@ router.get('/:quizId/sessions', authenticateToken, async (req, res) => {
     console.error('Get quiz sessions error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Add endpoints for option and match image uploads
+router.post('/upload-option-image', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
+});
+
+router.post('/upload-match-image', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
+});
+
+// Add endpoint for question image uploads
+router.post('/upload-question-image', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
 });
 
 module.exports = router; 
