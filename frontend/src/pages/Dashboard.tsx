@@ -24,6 +24,9 @@ const Dashboard: React.FC = () => {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchQuizzes();
@@ -90,6 +93,27 @@ const Dashboard: React.FC = () => {
       setSessionsError(error.response?.data?.error || 'Failed to fetch sessions');
     } finally {
       setLoadingSessions(false);
+    }
+  };
+
+  const handleDeleteClick = (quiz: Quiz) => {
+    setQuizToDelete(quiz);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteQuiz = async () => {
+    if (!quizToDelete) return;
+    
+    try {
+      setDeleting(true);
+      await axios.delete(`/api/quiz/${quizToDelete.id}`);
+      setDeleteModalOpen(false);
+      setQuizToDelete(null);
+      fetchQuizzes(); // Refresh the quiz list
+    } catch (error: any) {
+      setError(error.response?.data?.error || 'Failed to delete quiz');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -272,6 +296,13 @@ const Dashboard: React.FC = () => {
                     Start Quiz Session
                   </button>
                 )}
+                <button
+                  className="btn dashboard-action-btn"
+                  style={{ flex: 1, background: '#6b7280', color: '#fff', border: '2px solid #fff', transition: 'background 0.2s, color 0.2s', fontFamily: 'Satoshi, Inter, Poppins, sans-serif' }}
+                  onClick={() => handleDeleteClick(quiz)}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
@@ -380,6 +411,38 @@ const Dashboard: React.FC = () => {
           <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => setAnalyticsModalOpen(false)}>
             Close
           </button>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        aria-labelledby="delete-modal-title"
+        aria-describedby="delete-modal-description"
+      >
+        <div className="modal-content" style={{ background: '#18122B', color: '#fff', fontFamily: 'Satoshi, Inter, Poppins, sans-serif', padding: 32, borderRadius: 12, maxWidth: 400, margin: '4rem auto', outline: 'none', maxHeight: '200px', overflowY: 'auto' }}>
+          <h2 id="delete-modal-title" style={{ marginBottom: 16 }}>Confirm Deletion</h2>
+          <p id="delete-modal-description" style={{ marginBottom: 24 }}>
+            Are you sure you want to delete "{quizToDelete?.title}"? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              className="btn btn-secondary"
+              style={{ flex: 1 }}
+              onClick={() => setDeleteModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-danger"
+              style={{ flex: 1 }}
+              onClick={handleDeleteQuiz}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

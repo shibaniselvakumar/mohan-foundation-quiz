@@ -290,6 +290,60 @@ router.put('/:quizId', authenticateToken, async (req, res) => {
   }
 });
 
+// Delete quiz
+router.delete('/:quizId', authenticateToken, async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const creatorId = req.user.id;
+
+    // Verify quiz ownership
+    const quizResult = await pool.query(
+      'SELECT id FROM quizzes WHERE id = $1 AND creator_id = $2',
+      [quizId, creatorId]
+    );
+
+    if (quizResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+
+    // Delete quiz and all related data in a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Delete responses first (due to foreign key constraints)
+      await client.query('DELETE FROM responses WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = $1)', [quizId]);
+      
+      // Delete participants
+      await client.query('DELETE FROM participants WHERE session_id IN (SELECT id FROM quiz_sessions WHERE quiz_id = $1)', [quizId]);
+      
+      // Delete quiz sessions
+      await client.query('DELETE FROM quiz_sessions WHERE quiz_id = $1', [quizId]);
+      
+      // Delete match pairs (linked to questions, not directly to quiz)
+      await client.query('DELETE FROM match_pairs WHERE question_id IN (SELECT id FROM questions WHERE quiz_id = $1)', [quizId]);
+      
+      // Delete questions
+      await client.query('DELETE FROM questions WHERE quiz_id = $1', [quizId]);
+      
+      // Finally delete the quiz
+      await client.query('DELETE FROM quizzes WHERE id = $1', [quizId]);
+
+      await client.query('COMMIT');
+
+      res.json({ message: 'Quiz deleted successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Delete quiz error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get quiz by ID with questions (include match pairs)
 router.get('/:quizId', authenticateToken, async (req, res) => {
   try {
