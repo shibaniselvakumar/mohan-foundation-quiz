@@ -861,7 +861,7 @@ const QuizSession: React.FC = () => {
                       fontSize: '0.875rem',
                       fontWeight: '500',
                       backgroundColor: participant.isCorrect ? '#d1fae5' : '#fee2e2',
-                      color: participant.isCorrect ? '#065f46' : '#991b1b'
+                      color: '#000'
                     }}
                   >
                     {participant.name} {participant.isCorrect ? '✓' : '✗'}
@@ -899,8 +899,8 @@ const QuizSession: React.FC = () => {
                     >
                       <span style={{ color: '#fff', fontWeight: 700, fontSize: 28 }}>{podiumIdx + 1}</span>
                     </Box>
-                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 18 }}>{leaderboard[podiumIdx]?.name}</span>
-                    <span style={{ color: '#864DFF', fontWeight: 700, fontSize: 16 }}>{leaderboard[podiumIdx]?.total_score} pts</span>
+                    <span style={{ color: '#000', fontWeight: 600, fontSize: 18 }}>{leaderboard[podiumIdx]?.name}</span>
+                    <span style={{ color: '#000', fontWeight: 700, fontSize: 16 }}>{leaderboard[podiumIdx]?.total_score} pts</span>
                   </Box>
                 ))}
               </Box>
@@ -911,9 +911,9 @@ const QuizSession: React.FC = () => {
                 autoHeight
                 rows={leaderboard.map((entry, idx) => ({ id: idx + 1, ...entry, rank: idx + 1 }))}
                 columns={[
-                  { field: 'rank', headerName: 'Rank', width: 80, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <b>{params.value}</b> },
-                  { field: 'name', headerName: 'Username', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <span>{params.value}</span> },
-                  { field: 'total_score', headerName: 'Points', width: 100, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <b style={{ color: '#864DFF' }}>{params.value}</b> },
+                  { field: 'rank', headerName: 'Rank', width: 80, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <b style={{ color: '#000' }}>{params.value}</b> },
+                  { field: 'name', headerName: 'Username', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <span style={{ color: '#000' }}>{params.value}</span> },
+                  { field: 'total_score', headerName: 'Points', width: 100, headerAlign: 'center', align: 'center', renderCell: (params: GridRenderCellParams) => <b style={{ color: '#000' }}>{params.value}</b> },
                 ]}
                 initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
                 pagination={true}
@@ -925,7 +925,7 @@ const QuizSession: React.FC = () => {
                   fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
                   '& .MuiDataGrid-columnHeaders': {
                     background: '#6C38FF !important',
-                    color: '#fff !important',
+                    color: '#000 !important',
                     fontWeight: 800,
                     fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
                     fontSize: 18,
@@ -933,13 +933,13 @@ const QuizSession: React.FC = () => {
                     borderTopRightRadius: 16,
                   },
                   '& .MuiDataGrid-columnHeaderTitle': {
-                    color: '#fff !important',
+                    color: '#000 !important',
                     fontWeight: 800,
                     fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
                   },
                   '& .MuiDataGrid-row': {
                     background: '#fff !important',
-                    color: '#18122B !important',
+                    color: '#000 !important',
                     fontWeight: 600,
                     fontFamily: 'Satoshi, Inter, Poppins, sans-serif',
                     transition: 'background 0.2s',
@@ -949,13 +949,20 @@ const QuizSession: React.FC = () => {
                   '& .MuiDataGrid-cell': {
                     border: 'none',
                     fontSize: 16,
-                    color: '#18122B !important',
+                    color: '#000 !important',
                   },
                   '& .MuiDataGrid-virtualScroller': {
                     background: 'transparent',
                   },
                   '& .MuiDataGrid-footerContainer': {
                     display: 'none',
+                  },
+                  // Force DataGrid popover/menu/toolbar text to black
+                  '& .MuiDataGrid-menu, & .MuiDataGrid-panel, & .MuiDataGrid-toolbar, & .MuiMenu-paper, & .MuiPaper-root, & .MuiList-root, & .MuiListItem-root, & .MuiButtonBase-root, & .MuiTypography-root': {
+                    color: '#000 !important',
+                  },
+                  '& .MuiDataGrid-menu .MuiListItem-root, & .MuiDataGrid-panel .MuiListItem-root, & .MuiDataGrid-toolbar .MuiButtonBase-root, & .MuiMenu-paper .MuiListItem-root, & .MuiPaper-root .MuiListItem-root': {
+                    color: '#000 !important',
                   },
                 }}
               />
